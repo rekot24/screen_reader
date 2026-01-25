@@ -59,6 +59,43 @@ TOKENS: Dict[str, List[str]] = {
 
 
 # =========================
+# USED FOR DEBUGGING
+# =========================
+import os
+from datetime import datetime
+DEBUG_SAVE_SCREENSHOTS = True          # set False to stop saving
+DEBUG_SCREENSHOT_DIR = "debug_shots"   # folder inside your project
+DEBUG_SAVE_EVERY_SCAN = False          # True = save every scan, False = only on Single Scan
+def save_debug_screenshot(pil_img: Image.Image, base_dir: str, prefix: str = "shot") -> str:
+    """
+    Save a PIL image to a timestamped PNG file inside base_dir.
+    Returns the full file path.
+    """
+    os.makedirs(base_dir, exist_ok=True)
+
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    filename = f"{prefix}_{ts}.png"
+    path = os.path.join(base_dir, filename)
+
+    pil_img.save(path, format="PNG")
+    return path
+
+def save_debug_screenshot(pil_img: Image.Image, base_dir: str, prefix: str = "shot") -> str:
+    """
+    Save a PIL image to a timestamped PNG file inside base_dir.
+    Returns the full file path.
+    """
+    os.makedirs(base_dir, exist_ok=True)
+
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    filename = f"{prefix}_{ts}.png"
+    path = os.path.join(base_dir, filename)
+
+    pil_img.save(path, format="PNG")
+    return path
+
+
+# =========================
 # DATA MODELS (dataclasses)
 # =========================
 
@@ -82,6 +119,26 @@ class TokenMatch:
     """
     token_name: str
     hit: OcrHit
+
+
+# =========================
+# DPI AWARENESS (Windows)
+# Put this at the top of main.py BEFORE creating Tk()
+# =========================
+import sys
+
+if sys.platform.startswith("win"):
+    try:
+        import ctypes
+        # Best option on Win 8.1+ / Win 10/11: Per-monitor DPI aware
+        ctypes.windll.shcore.SetProcessDpiAwareness(2)  # 2 = PER_MONITOR_DPI_AWARE
+    except Exception:
+        try:
+            import ctypes
+            # Fallback for older Windows: System DPI aware
+            ctypes.windll.user32.SetProcessDPIAware()
+        except Exception:
+            pass
 
 
 # =========================
@@ -439,7 +496,22 @@ class App:
         while not self._stop_event.is_set():
             t0 = time.time()
             self._scan_once()
+            
+            # =========================
+            # DEBUG SAVE START (comment out later)
+            # =========================
+            pil_img = grab_full_desktop_pil()
+            if DEBUG_SAVE_SCREENSHOTS:
+                should_save = DEBUG_SAVE_EVERY_SCAN or (not self.is_running.get())
+                if should_save:
+                    out_dir = os.path.join(os.getcwd(), DEBUG_SCREENSHOT_DIR)
+                    saved_path = save_debug_screenshot(pil_img, out_dir, prefix="desktop")
+                    self._log(f"[debug] saved screenshot: {saved_path}")
+            # =========================
+            # DEBUG SAVE END
+            # =========================
 
+            
             dt = time.time() - t0
             target = self.refresh_ms.get() / 1000.0
 
