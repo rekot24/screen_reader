@@ -23,6 +23,10 @@ import queue
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
+import win32gui
+import win32con
+import win32process
+
 import tkinter as tk
 from tkinter import ttk
 from tkinter.scrolledtext import ScrolledText
@@ -34,9 +38,13 @@ from PIL import Image
 import pytesseract
 
 
+
 # =========================
 # USER CONFIG
 # =========================
+# Target window title substring to activate before capture (case-insensitive).
+TARGET_WINDOW_TITLE_CONTAINS = "Roblox"
+ACTIVATE_BEFORE_CAPTURE = True
 
 # If your laptop has Tesseract installed and you want a fixed path, set it here.
 # If Tesseract is already on PATH, you can leave this as None.
@@ -59,41 +67,61 @@ TOKENS: Dict[str, List[str]] = {
 
 
 # =========================
-# USED FOR DEBUGGING
+# DEBUG SECTION START
 # =========================
+from PIL import ImageDraw
 import os
 from datetime import datetime
 DEBUG_SAVE_SCREENSHOTS = True          # set False to stop saving
 DEBUG_SCREENSHOT_DIR = "debug_shots"   # folder inside your project
 DEBUG_SAVE_EVERY_SCAN = False          # True = save every scan, False = only on Single Scan
-def save_debug_screenshot(pil_img: Image.Image, base_dir: str, prefix: str = "shot") -> str:
+def project_dir() -> str:
+    # Folder where this script lives (stable)
+    return os.path.dirname(os.path.abspath(__file__))
+def save_debug_screenshot(pil_img, subfolder="debug_shots", prefix="desktop") -> str:
     """
-    Save a PIL image to a timestamped PNG file inside base_dir.
-    Returns the full file path.
+    Saves a PIL image into <project folder>/<subfolder>/prefix_timestamp.png
+    Returns the file path.
+    Raises exception if it fails (caller should catch/log).
     """
+    base_dir = os.path.join(project_dir(), subfolder)
     os.makedirs(base_dir, exist_ok=True)
 
     ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-    filename = f"{prefix}_{ts}.png"
-    path = os.path.join(base_dir, filename)
+    path = os.path.join(base_dir, f"{prefix}_{ts}.png")
 
     pil_img.save(path, format="PNG")
     return path
-
-def save_debug_screenshot(pil_img: Image.Image, base_dir: str, prefix: str = "shot") -> str:
+def draw_ocr_boxes(pil_img: Image.Image, hits: List[OcrHit], max_boxes: Optional[int] = None) -> Image.Image:
     """
-    Save a PIL image to a timestamped PNG file inside base_dir.
-    Returns the full file path.
+    Returns a COPY of the image with OCR bounding boxes drawn on it.
+    max_boxes can be used to limit how many boxes are drawn (None = all).
     """
-    os.makedirs(base_dir, exist_ok=True)
+    out = pil_img.copy()
+    draw = ImageDraw.Draw(out)
 
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-    filename = f"{prefix}_{ts}.png"
-    path = os.path.join(base_dir, filename)
+    # Optionally sort by confidence so the "best" boxes are drawn first
+    hits_sorted = sorted(hits, key=lambda h: h.conf, reverse=True)
 
-    pil_img.save(path, format="PNG")
-    return path
+    if max_boxes is not None:
+        hits_sorted = hits_sorted[:max_boxes]
 
+    for h in hits_sorted:
+        x, y, w, hh = h.bbox
+        x2, y2 = x + w, y + hh
+
+        # Rectangle around the OCR hit
+        draw.rectangle([x, y, x2, y2], outline="yellow", width=2)
+
+        # Label (text + conf) drawn above the box if possible
+        label = f"{h.text} ({h.conf})"
+        text_y = y - 14 if y - 14 > 0 else y + 2
+        draw.text((x, text_y), label, fill="yellow")
+
+    return out
+# =========================
+# DEBUG SECTION END
+# =========================
 
 # =========================
 # DATA MODELS (dataclasses)
@@ -270,6 +298,63 @@ def get_anchor(
     anchor_cache[token_name] = best.hit
     return best.hit
 
+# =========================
+# ACTIVATE TARGET WINDOW HELPERS
+# =========================
+def _enum_windows():
+    """Return a list of (hwnd, title) for visible top-level windows."""
+    out = []
+
+    def callback(hwnd, _):
+        if not win32gui.IsWindowVisible(hwnd):
+            return
+        title = win32gui.GetWindowText(hwnd)
+        if title:
+            out.append((hwnd, title))
+    win32gui.EnumWindows(callback, None)
+    return out
+
+
+def find_window_by_title_contains(title_substring: str):
+    """
+    Find the first top-level window whose title contains title_substring (case-insensitive).
+    Returns hwnd or None.
+    """
+    needle = title_substring.lower().strip()
+    for hwnd, title in _enum_windows():
+        if needle in title.lower():
+            return hwnd
+    return None
+
+
+def activate_window(hwnd: int) -> bool:
+    """
+    Try to bring a window to the foreground and restore it if minimized.
+    Returns True if it likely succeeded.
+    """
+    if not hwnd or not win32gui.IsWindow(hwnd):
+        return False
+
+    # Restore if minimized
+    if win32gui.IsIconic(hwnd):
+        win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+
+    # Make sure it is shown
+    win32gui.ShowWindow(hwnd, win32con.SW_SHOW)
+
+    try:
+        win32gui.SetForegroundWindow(hwnd)
+        return True
+    except Exception:
+        # Windows can block SetForegroundWindow in some cases.
+        # A common workaround is to bring it to top then try again.
+        try:
+            win32gui.BringWindowToTop(hwnd)
+            win32gui.SetForegroundWindow(hwnd)
+            return True
+        except Exception:
+            return False
+        
 
 # =========================
 # GUI APP
@@ -303,8 +388,10 @@ class App:
         self._build_ui()
 
         # Hotkeys
+        # F1: Single Scan
         # F5: Start
         # F8: Stop
+        self.root.bind("<F1>", lambda _e: self.single_scan())
         self.root.bind("<F5>", lambda _e: self.start())
         self.root.bind("<F8>", lambda _e: self.stop())
 
@@ -496,22 +583,6 @@ class App:
         while not self._stop_event.is_set():
             t0 = time.time()
             self._scan_once()
-            
-            # =========================
-            # DEBUG SAVE START (comment out later)
-            # =========================
-            pil_img = grab_full_desktop_pil()
-            if DEBUG_SAVE_SCREENSHOTS:
-                should_save = DEBUG_SAVE_EVERY_SCAN or (not self.is_running.get())
-                if should_save:
-                    out_dir = os.path.join(os.getcwd(), DEBUG_SCREENSHOT_DIR)
-                    saved_path = save_debug_screenshot(pil_img, out_dir, prefix="desktop")
-                    self._log(f"[debug] saved screenshot: {saved_path}")
-            # =========================
-            # DEBUG SAVE END
-            # =========================
-
-            
             dt = time.time() - t0
             target = self.refresh_ms.get() / 1000.0
 
@@ -557,6 +628,14 @@ class App:
             # This output is intentionally verbose so you can learn how OCR behaves.
             # You can later comment this out or reduce it.
             # =========================
+            # Saves an annotated screenshot with bounding boxes around OCR hits
+            try:
+                annotated = draw_ocr_boxes(pil_img, hits, max_boxes=None)  # None = draw ALL
+                saved_path = save_debug_screenshot(annotated, subfolder="debug_shots", prefix="annotated")
+                self._log(f"[debug] saved annotated screenshot: {saved_path}")
+            except Exception as e:
+                self._log(f"[debug] annotated save FAILED: {type(e).__name__}: {e}")
+
             now = time.strftime("%H:%M:%S")
             self._log(f"[scan {now}] hits={len(hits)}  dt={dt_ms}ms  signals={signals}")
 
@@ -570,7 +649,7 @@ class App:
                 top = [h for h in top if flt in h.text.lower()]
                 self._log(f"  [filter] showing only OCR hits containing '{flt}'")
 
-            top = top[:30]
+            # top = top[:30] # limit number of printed hits if desired
 
             for h in top:
                 x, y, w, hh = h.bbox
@@ -594,6 +673,14 @@ class App:
             # Print cached anchors (what is currently "sticky" across scans)
             if self.anchor_cache:
                 self._log(f"  CACHE: {list(self.anchor_cache.keys())}")
+            
+            # Save screenshot if enabled
+            try:
+                if DEBUG_SAVE_EVERY_SCAN or (not self.is_running.get()):
+                    saved_path = save_debug_screenshot(pil_img, subfolder="debug_shots", prefix="desktop")
+                    self._log(f"[debug] saved screenshot: {saved_path}")
+            except Exception as e:
+                self._log(f"[debug] screenshot save FAILED: {type(e).__name__}: {e}")
             # =========================
             # DEBUG SECTION END
             # =========================

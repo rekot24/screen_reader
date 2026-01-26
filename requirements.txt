@@ -2,3 +2,4 @@ mss
 pytesseract
 pillow
 numpy
+pywin32
