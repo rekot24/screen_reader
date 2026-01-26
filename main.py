@@ -67,6 +67,32 @@ TOKENS: Dict[str, List[str]] = {
 
 
 # =========================
+# DATA MODELS (dataclasses)
+# =========================
+
+@dataclass
+class OcrHit:
+    """
+    One OCR word (or token) detected on screen.
+    bbox is (x, y, w, h) relative to the captured screenshot.
+    """
+    text: str
+    conf: int
+    bbox: Tuple[int, int, int, int]
+
+
+@dataclass
+class TokenMatch:
+    """
+    A semantic match: an OCR hit that matched a token you care about.
+    token_name is your intent label, like TOKEN_AUTO_BUTTON.
+    hit is the actual OCR data (text, confidence, bbox).
+    """
+    token_name: str
+    hit: OcrHit
+
+
+# =========================
 # DEBUG SECTION START
 # =========================
 from PIL import ImageDraw
@@ -122,31 +148,6 @@ def draw_ocr_boxes(pil_img: Image.Image, hits: List[OcrHit], max_boxes: Optional
 # =========================
 # DEBUG SECTION END
 # =========================
-
-# =========================
-# DATA MODELS (dataclasses)
-# =========================
-
-@dataclass
-class OcrHit:
-    """
-    One OCR word (or token) detected on screen.
-    bbox is (x, y, w, h) relative to the captured screenshot.
-    """
-    text: str
-    conf: int
-    bbox: Tuple[int, int, int, int]
-
-
-@dataclass
-class TokenMatch:
-    """
-    A semantic match: an OCR hit that matched a token you care about.
-    token_name is your intent label, like TOKEN_AUTO_BUTTON.
-    hit is the actual OCR data (text, confidence, bbox).
-    """
-    token_name: str
-    hit: OcrHit
 
 
 # =========================
@@ -600,6 +601,16 @@ class App:
         """
         try:
             t0 = time.time()
+
+            if ACTIVATE_BEFORE_CAPTURE:
+                hwnd = find_window_by_title_contains(TARGET_WINDOW_TITLE_CONTAINS)
+                if hwnd:
+                    ok = activate_window(hwnd)
+                    self._log(f"[focus] activate '{TARGET_WINDOW_TITLE_CONTAINS}' ok={ok}")
+                    # Small delay helps Windows finish repainting before capture
+                    time.sleep(0.15)
+                else:
+                    self._log(f"[focus] window not found for title contains: '{TARGET_WINDOW_TITLE_CONTAINS}'")
 
             # 1) Capture
             pil_img = grab_full_desktop_pil()
