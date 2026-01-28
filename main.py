@@ -22,6 +22,7 @@ import threading
 import queue
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
+from pathlib import Path
 
 import win32gui
 import win32con
@@ -42,6 +43,8 @@ import pyautogui
 # =========================
 # USER CONFIG
 # =========================
+APP_DIR = Path(__file__).resolve().parent
+ASSETS_DIR = APP_DIR / "assets"
 # Target window title substring to activate before capture (case-insensitive).
 TARGET_WINDOW_TITLE_CONTAINS = "Roblox"
 ACTIVATE_BEFORE_CAPTURE = True
@@ -104,13 +107,13 @@ DETECTORS: Dict[str, Dict[str, Any]] = {
     # IMAGE detectors (template matching)
     "AUTO_RED_ICON": {
         "kind": "image",
-        "path": r"assets\auto_red.png",
+        "path": str(ASSETS_DIR / "auto_red.png"),
         "confidence": 0.82,
         "timeout_s": 1.5,
     },
     "AUTO_GREEN_ICON": {
         "kind": "image",
-        "path": r"assets\auto_green.png",
+        "path": str(ASSETS_DIR / "auto_green.png"),
         "confidence": 0.82,
         "timeout_s": 1.5,
     },
