@@ -37,13 +37,13 @@ from PIL import Image
 
 import pytesseract
 
-
+import pyautogui
 
 # =========================
 # USER CONFIG
 # =========================
 # Target window title substring to activate before capture (case-insensitive).
-TARGET_WINDOW_TITLE_CONTAINS = "Roblox"
+TARGET_WINDOW_TITLE_CONTAINS = "monkey"
 ACTIVATE_BEFORE_CAPTURE = True
 
 # If your laptop has Tesseract installed and you want a fixed path, set it here.
@@ -52,18 +52,6 @@ TESSERACT_EXE_PATH = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
 if TESSERACT_EXE_PATH:
     pytesseract.pytesseract.tesseract_cmd = TESSERACT_EXE_PATH
-
-
-# =========================
-# PLACEHOLDER TOKENS (EDIT THESE LATER)
-# =========================
-# These are "intent names" you care about in your future logic tree.
-# Each token has a list of strings that should match OCR text.
-TOKENS: Dict[str, List[str]] = {
-    "TOKEN_AUTO_BUTTON": ["AUTO"],
-    "TOKEN_END_RUN": ["END", "RUN", "END RUN"],
-    "TOKEN_DEATH": ["YOU DIED", "DEFEAT", "DEATH"],  # placeholder
-}
 
 
 # =========================
@@ -81,15 +69,174 @@ class OcrHit:
     bbox: Tuple[int, int, int, int]
 
 
+# =========================
+# DETECTOR REGISTRY
+# Put near the top of main.py (after imports and dataclasses)
+# =========================
+
+# Unified result type for any detector (OCR or IMAGE)
 @dataclass
-class TokenMatch:
-    """
-    A semantic match: an OCR hit that matched a token you care about.
-    token_name is your intent label, like TOKEN_AUTO_BUTTON.
-    hit is the actual OCR data (text, confidence, bbox).
-    """
-    token_name: str
-    hit: OcrHit
+class DetectResult:
+    name: str
+    kind: str                 # "ocr" or "image"
+    found: bool
+    bbox: Optional[Tuple[int, int, int, int]] = None  # x, y, w, h in desktop coords
+    text: Optional[str] = None
+    conf: Optional[int] = None
+    extra: Optional[Dict[str, Any]] = None
+
+
+# Registry that defines all detection rules in one place
+DETECTORS: Dict[str, Dict[str, Any]] = {
+    # OCR detectors
+    # token is substring match against OCR hits, case-insensitive
+    "END_RUN_TEXT": {
+        "kind": "ocr",
+        "token": "End Run",           # placeholder, you edit later
+        "min_conf": 40,               # per-detector threshold
+    },
+    "AUTO_TEXT": {
+        "kind": "ocr",
+        "token": "Auto",              # placeholder
+        "min_conf": 30,
+    },
+
+    # IMAGE detectors (template matching)
+    "AUTO_RED_ICON": {
+        "kind": "image",
+        "path": r"assets\auto_red.png",
+        "confidence": 0.82,
+        "timeout_s": 1.5,
+    },
+    "AUTO_GREEN_ICON": {
+        "kind": "image",
+        "path": r"assets\auto_green.png",
+        "confidence": 0.82,
+        "timeout_s": 1.5,
+    },
+}
+
+pyautogui.FAILSAFE = True
+pyautogui.PAUSE = 0.02
+
+def find_image_on_screen(template_path: str, confidence: float = 0.85, timeout_s: float = 2.0):
+    t0 = time.time()
+    while time.time() - t0 < timeout_s:
+        box = pyautogui.locateOnScreen(template_path, confidence=confidence)
+        if box:
+            return box
+    return None
+
+
+
+# =========================
+# DETECTOR ENGINE HELPERS
+# These functions assume you already have:
+# - hits: List[OcrHit] from your OCR scan
+# - find_image_on_screen(...) using pyautogui.locateOnScreen
+# =========================
+
+def _first_ocr_hit_containing(hits: List["OcrHit"], token: str, min_conf: int) -> Optional["OcrHit"]:
+    token_l = token.lower()
+    # Sort by confidence so the best match wins
+    for h in sorted(hits, key=lambda x: x.conf, reverse=True):
+        if h.conf < min_conf:
+            continue
+        if token_l in h.text.lower():
+            return h
+    return None
+
+
+def run_detector(
+    name: str,
+    cfg: Dict[str, Any],
+    hits: List["OcrHit"],
+) -> DetectResult:
+    kind = cfg["kind"]
+
+    if kind == "ocr":
+        token = cfg["token"]
+        min_conf = int(cfg.get("min_conf", 0))
+        h = _first_ocr_hit_containing(hits, token=token, min_conf=min_conf)
+        if not h:
+            return DetectResult(name=name, kind="ocr", found=False)
+
+        return DetectResult(
+            name=name,
+            kind="ocr",
+            found=True,
+            bbox=h.bbox,
+            text=h.text,
+            conf=h.conf,
+            extra={"token": token, "min_conf": min_conf},
+        )
+
+    if kind == "image":
+        # This assumes your existing helper exists:
+        # find_image_on_screen(template_path, confidence, timeout_s) -> Box|None
+        box = find_image_on_screen(
+            template_path=cfg["path"],
+            confidence=float(cfg.get("confidence", 0.85)),
+            timeout_s=float(cfg.get("timeout_s", 2.0)),
+        )
+        if not box:
+            return DetectResult(name=name, kind="image", found=False)
+
+        # pyautogui Box is left, top, width, height
+        bbox = (int(box.left), int(box.top), int(box.width), int(box.height))
+        return DetectResult(
+            name=name,
+            kind="image",
+            found=True,
+            bbox=bbox,
+            extra={"path": cfg["path"], "confidence": cfg.get("confidence", 0.85)},
+        )
+
+    raise ValueError(f"Unknown detector kind: {kind}")
+
+
+def run_detectors(
+    detector_names: List[str],
+    hits: List["OcrHit"],
+) -> Dict[str, DetectResult]:
+    out: Dict[str, DetectResult] = {}
+    for name in detector_names:
+        cfg = DETECTORS[name]
+        out[name] = run_detector(name, cfg, hits)
+    return out
+
+
+# =========================
+# OPTIONAL: SIMPLE CACHE
+# Caches bbox results so you do not re-search every scan
+# Clear this cache when you detect a crash or when you intentionally reset the UI
+# =========================
+
+class DetectorCache:
+    def __init__(self):
+        self._data: Dict[str, Tuple[DetectResult, float]] = {}
+
+    def clear(self):
+        self._data.clear()
+
+    def get(self, name: str) -> Optional[DetectResult]:
+        item = self._data.get(name)
+        return item[0] if item else None
+
+    def set(self, name: str, result: DetectResult):
+        self._data[name] = (result, time.time())
+
+    def get_or_run(self, name: str, hits: List["OcrHit"], refresh: bool = False) -> DetectResult:
+        if not refresh:
+            cached = self.get(name)
+            if cached and cached.found:
+                return cached
+
+        cfg = DETECTORS[name]
+        res = run_detector(name, cfg, hits)
+        if res.found:
+            self.set(name, res)
+        return res
 
 
 # =========================
@@ -224,82 +371,6 @@ def ocr_image_to_hits(pil_img: Image.Image, conf_threshold: int = 60) -> List[Oc
 
 
 # =========================
-# TOKEN MATCHING
-# =========================
-
-def _normalize(s: str) -> str:
-    """Simple normalization for matching OCR text."""
-    return "".join(ch.lower() for ch in s.strip())
-
-
-def match_tokens(hits: List[OcrHit], tokens: Dict[str, List[str]]) -> Dict[str, List[TokenMatch]]:
-    """
-    Convert raw OCR hits into semantic matches keyed by token name.
-    Output is a dictionary:
-      matches["TOKEN_AUTO_BUTTON"] = [TokenMatch(...), TokenMatch(...)]
-    """
-    matches: Dict[str, List[TokenMatch]] = {k: [] for k in tokens.keys()}
-
-    for hit in hits:
-        hit_norm = _normalize(hit.text)
-
-        for token_name, variants in tokens.items():
-            for v in variants:
-                v_norm = _normalize(v)
-
-                # Simple placeholder matching:
-                # - exact match OR substring match
-                # You can replace this later with fuzzy matching if you want.
-                if hit_norm == v_norm or v_norm in hit_norm:
-                    matches[token_name].append(TokenMatch(token_name=token_name, hit=hit))
-                    break
-
-    # Optional: sort each token's matches in a stable "reading order"
-    for token_name in matches:
-        matches[token_name].sort(key=lambda m: (m.hit.bbox[1], m.hit.bbox[0]))
-
-    return matches
-
-
-# =========================
-# TINY HELPER FUNCTION (anchor cache)
-# =========================
-
-def get_anchor(
-    token_name: str,
-    matches: Dict[str, List[TokenMatch]],
-    anchor_cache: Dict[str, OcrHit],
-    min_conf: int = 70
-) -> Optional[OcrHit]:
-    """
-    Tiny helper:
-    - If we already found this token before and cached it, return the cached OcrHit
-    - Otherwise find the best match now (highest confidence), cache it, and return it
-
-    Why this helps:
-    - Your logic tree can ask for "AUTO button location" and not worry about OCR details
-    - You can clear anchor_cache after a crash or reset to force re-discovery
-    """
-    # 1) Return cached anchor if available
-    if token_name in anchor_cache:
-        return anchor_cache[token_name]
-
-    # 2) If no matches exist, no anchor
-    token_matches = matches.get(token_name, [])
-    if not token_matches:
-        return None
-
-    # 3) Pick the best match by confidence
-    best = max(token_matches, key=lambda m: m.hit.conf)
-
-    if best.hit.conf < min_conf:
-        return None
-
-    # 4) Cache and return
-    anchor_cache[token_name] = best.hit
-    return best.hit
-
-# =========================
 # ACTIVATE TARGET WINDOW HELPERS
 # =========================
 def _enum_windows():
@@ -378,13 +449,11 @@ class App:
         # Debug filter Safe to remove later
         self.debug_filter = tk.StringVar(value="")
 
-        # Anchor cache (token_name -> OcrHit)
-        self.anchor_cache: Dict[str, OcrHit] = {}
-
         # Thread-safe queue to send text output to the GUI
         self.ui_queue: "queue.Queue[str]" = queue.Queue()
 
-
+        # Detector cache
+        self.det_cache = DetectorCache()
 
         self._build_ui()
 
@@ -477,9 +546,6 @@ class App:
         tools.grid(row=1, column=0, sticky="ew", pady=(8, 0))
         tools.columnconfigure(4, weight=1)
 
-        ttk.Button(tools, text="Clear Output", command=self._clear_output).grid(row=0, column=0, padx=(0, 8))
-        ttk.Button(tools, text="Clear Anchor Cache", command=self._clear_cache).grid(row=0, column=1, padx=(0, 12))
-
         ttk.Label(tools, text="Filter OCR contains:").grid(row=0, column=2, sticky="w", padx=(0, 6))
 
         filter_entry = ttk.Entry(tools, textvariable=self.debug_filter, width=18)
@@ -502,10 +568,6 @@ class App:
 
     def _clear_output(self):
         self.txt.delete("1.0", "end")
-
-    def _clear_cache(self):
-        self.anchor_cache.clear()
-        self._append_output("[cache] Anchor cache cleared")
 
     def _pump_ui_queue(self):
         """
@@ -618,18 +680,21 @@ class App:
             # 2) OCR -> hits
             hits = ocr_image_to_hits(pil_img, conf_threshold=int(self.conf_threshold.get()))
 
-            # 3) Token matching
-            matches = match_tokens(hits, TOKENS)
+            # 3) Run detectors (choose which ones you care about for now)
+            detector_names = [
+                "AUTO_RED_ICON",
+                "AUTO_GREEN_ICON",
+                "END_RUN_TEXT",
+                "AUTO_TEXT",
+            ]
+            results = {name: self.det_cache.get_or_run(name, hits, refresh=False) for name in detector_names}
 
-            # 4) Tiny helper example: get anchors for tokens you care about
-            auto_anchor = get_anchor("TOKEN_AUTO_BUTTON", matches, self.anchor_cache, min_conf=70)
-            end_run_anchor = get_anchor("TOKEN_END_RUN", matches, self.anchor_cache, min_conf=70)
-
-            # 5) Build signals (screen snapshot facts)
+            # 4) Build signals from detector results
             signals = {
-                "has_auto": auto_anchor is not None,
-                "has_end_run": end_run_anchor is not None,
-                "has_death": bool(matches.get("TOKEN_DEATH")),
+                "has_auto_red": results["AUTO_RED_ICON"].found,
+                "has_auto_green": results["AUTO_GREEN_ICON"].found,
+                "has_end_run": results["END_RUN_TEXT"].found,
+                "has_auto_text": results["AUTO_TEXT"].found,
             }
 
             dt_ms = int((time.time() - t0) * 1000)
@@ -666,21 +731,19 @@ class App:
                 x, y, w, hh = h.bbox
                 self._log(f"  OCR: conf={h.conf:>3}  text='{h.text}'  bbox=({x},{y},{w},{hh})")
 
-            # Print matches per token
-            for token_name, lst in matches.items():
-                if not lst:
-                    continue
-
-                # If filter set, only show match lines where the matched OCR text contains it
+            # Print detector results (new model)
+            for name, r in results.items():
                 if flt:
-                    if not any(flt in m.hit.text.lower() for m in lst):
+                    # If filter is set, only show lines where either the detector name or text contains it
+                    hay = (name + " " + (r.text or "")).lower()
+                    if flt not in hay:
                         continue
 
-                best = max(lst, key=lambda m: m.hit.conf)
-                bx, by, bw, bh = best.hit.bbox
-                self._log(f"  MATCH: {token_name}  best='{best.hit.text}' conf={best.hit.conf} bbox=({bx},{by},{bw},{bh})")
-
-
+                self._log(
+                    f"  DETECT: {name} kind={r.kind} found={r.found} "
+                    f"bbox={r.bbox} text='{r.text}' conf={r.conf}"
+                )
+            
             # Print cached anchors (what is currently "sticky" across scans)
             if self.anchor_cache:
                 self._log(f"  CACHE: {list(self.anchor_cache.keys())}")
