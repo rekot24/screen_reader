@@ -5,3 +5,4 @@ numpy
 pywin32
 pywin32-stubs
 pyautogui
+opencv-python

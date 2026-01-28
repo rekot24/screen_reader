@@ -21,7 +21,7 @@ import time
 import threading
 import queue
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import win32gui
 import win32con
@@ -43,7 +43,7 @@ import pyautogui
 # USER CONFIG
 # =========================
 # Target window title substring to activate before capture (case-insensitive).
-TARGET_WINDOW_TITLE_CONTAINS = "monkey"
+TARGET_WINDOW_TITLE_CONTAINS = "Roblox"
 ACTIVATE_BEFORE_CAPTURE = True
 
 # If your laptop has Tesseract installed and you want a fixed path, set it here.
@@ -215,6 +215,9 @@ def run_detectors(
 class DetectorCache:
     def __init__(self):
         self._data: Dict[str, Tuple[DetectResult, float]] = {}
+
+    def keys(self):
+        return list(self._data.keys())
 
     def clear(self):
         self._data.clear()
@@ -552,6 +555,8 @@ class App:
         filter_entry.grid(row=0, column=3, sticky="w")
 
         ttk.Button(tools, text="Clear Filter", command=lambda: self.debug_filter.set("")).grid(row=0, column=4, sticky="w", padx=(8, 0))
+        ttk.Button(tools, text="Clear Detector Cache", command=self._clear_cache).grid(row=0, column=0, sticky="w", padx=(0, 8))
+
 
         # =========================
         # DEBUG SECTION END
@@ -568,6 +573,10 @@ class App:
 
     def _clear_output(self):
         self.txt.delete("1.0", "end")
+
+    def _clear_cache(self):
+        self.det_cache.clear()
+        self._append_output("[cache] Detector cache cleared")
 
     def _pump_ui_queue(self):
         """
@@ -627,7 +636,7 @@ class App:
         Run exactly one scan.
         We run it in a thread so the UI stays responsive.
         """
-        threading.Thread(target=self._scan_once, daemon=True).start()
+        threading.Thread(target=lambda: self._scan_once(force_refresh=True), daemon=True).start()
 
     # =========================
     # CORE LOOP
@@ -656,7 +665,7 @@ class App:
 
         self._log("[run] stopped")
 
-    def _scan_once(self):
+    def _scan_once(self, force_refresh: bool = False):
         """
         One scan iteration.
         This is the heart of the learning harness.
@@ -687,7 +696,7 @@ class App:
                 "END_RUN_TEXT",
                 "AUTO_TEXT",
             ]
-            results = {name: self.det_cache.get_or_run(name, hits, refresh=False) for name in detector_names}
+            results = {name: self.det_cache.get_or_run(name, hits, refresh=force_refresh) for name in detector_names}
 
             # 4) Build signals from detector results
             signals = {
@@ -734,19 +743,20 @@ class App:
             # Print detector results (new model)
             for name, r in results.items():
                 if flt:
-                    # If filter is set, only show lines where either the detector name or text contains it
                     hay = (name + " " + (r.text or "")).lower()
                     if flt not in hay:
                         continue
+                self._log(f"  DETECT: {name} kind={r.kind} found={r.found} bbox={r.bbox} text='{r.text}' conf={r.conf}")
 
                 self._log(
                     f"  DETECT: {name} kind={r.kind} found={r.found} "
                     f"bbox={r.bbox} text='{r.text}' conf={r.conf}"
                 )
             
-            # Print cached anchors (what is currently "sticky" across scans)
-            if self.anchor_cache:
-                self._log(f"  CACHE: {list(self.anchor_cache.keys())}")
+            # Print cached detectors (what is currently "sticky" across scans)
+            cached = self.det_cache.keys()
+            if cached:
+                self._log(f"  CACHE: {cached}")
             
             # Save screenshot if enabled
             try:
