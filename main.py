@@ -39,6 +39,7 @@ from PIL import Image
 import pytesseract
 
 import pyautogui
+from pyscreeze import ImageNotFoundException
 
 # =========================
 # USER CONFIG
@@ -123,11 +124,24 @@ pyautogui.FAILSAFE = True
 pyautogui.PAUSE = 0.02
 
 def find_image_on_screen(template_path: str, confidence: float = 0.85, timeout_s: float = 2.0):
+    """
+    Returns a pyautogui Box (left, top, width, height) or None.
+    Never raises ImageNotFoundException.
+    """
     t0 = time.time()
     while time.time() - t0 < timeout_s:
-        box = pyautogui.locateOnScreen(template_path, confidence=confidence)
+        try:
+            box = pyautogui.locateOnScreen(template_path, confidence=confidence)
+        except ImageNotFoundException:
+            # PyAutoGUI/PyScreeze sometimes throws instead of returning None
+            box = None
+        except Exception:
+            # Any unexpected issues should not kill your scan loop
+            box = None
+
         if box:
             return box
+
     return None
 
 
@@ -177,11 +191,20 @@ def run_detector(
     if kind == "image":
         # This assumes your existing helper exists:
         # find_image_on_screen(template_path, confidence, timeout_s) -> Box|None
-        box = find_image_on_screen(
-            template_path=cfg["path"],
-            confidence=float(cfg.get("confidence", 0.85)),
-            timeout_s=float(cfg.get("timeout_s", 2.0)),
+        try:
+            box = find_image_on_screen(
+                template_path=cfg["path"],
+                confidence=float(cfg.get("confidence", 0.85)),
+                timeout_s=float(cfg.get("timeout_s", 2.0)),
+            )
+        except Exception as e:
+            return DetectResult(
+            name=name,
+            kind="image",
+            found=False,
+            extra={"error": f"{type(e).__name__}: {e}"}
         )
+
         if not box:
             return DetectResult(name=name, kind="image", found=False)
 
