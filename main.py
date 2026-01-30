@@ -19,6 +19,7 @@ Notes:
 
 import time
 import threading
+import cv2
 import queue
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
@@ -47,7 +48,7 @@ from pyscreeze import ImageNotFoundException
 APP_DIR = Path(__file__).resolve().parent
 ASSETS_DIR = APP_DIR / "assets"
 # Target window title substring to activate before capture (case-insensitive).
-TARGET_WINDOW_TITLE_CONTAINS = "Roblox"
+TARGET_WINDOW_TITLE_CONTAINS = "monkey"
 ACTIVATE_BEFORE_CAPTURE = True
 
 # If your laptop has Tesseract installed and you want a fixed path, set it here.
@@ -108,15 +109,19 @@ DETECTORS: Dict[str, Dict[str, Any]] = {
     # IMAGE detectors (template matching)
     "AUTO_RED_ICON": {
         "kind": "image",
-        "path": str(ASSETS_DIR / "auto_red.png"),
+        "paths": [
+            str(ASSETS_DIR / "auto_red.png"),
+            str(ASSETS_DIR / "auto_red_alt.png"),
+        ],
         "confidence": 0.82,
-        "timeout_s": 1.5,
     },
     "AUTO_GREEN_ICON": {
         "kind": "image",
-        "path": str(ASSETS_DIR / "auto_green.png"),
+        "paths": [
+            str(ASSETS_DIR / "auto_green.png"),
+            str(ASSETS_DIR / "auto_green_alt.png"),
+        ],
         "confidence": 0.82,
-        "timeout_s": 1.5,
     },
 }
 
@@ -168,6 +173,8 @@ def run_detector(
     name: str,
     cfg: Dict[str, Any],
     hits: List["OcrHit"],
+    frame_bgr: np.ndarray,
+    bank: "TemplateBank",
 ) -> DetectResult:
     kind = cfg["kind"]
 
@@ -191,11 +198,16 @@ def run_detector(
     if kind == "image":
         # This assumes your existing helper exists:
         # find_image_on_screen(template_path, confidence, timeout_s) -> Box|None
+
+        paths = cfg.get("paths") or [cfg["path"]]
+        threshold = float(cfg.get("confidence", 0.85))
+
         try:
-            box = find_image_on_screen(
-                template_path=cfg["path"],
-                confidence=float(cfg.get("confidence", 0.85)),
-                timeout_s=float(cfg.get("timeout_s", 2.0)),
+            bbox, extra = find_any_template_in_frame(
+                frame_bgr=frame_bgr,
+                template_paths=paths,
+                bank=bank,
+                threshold=threshold,
             )
         except Exception as e:
             return DetectResult(
@@ -205,17 +217,15 @@ def run_detector(
             extra={"error": f"{type(e).__name__}: {e}"}
         )
 
-        if not box:
+        if not bbox:
             return DetectResult(name=name, kind="image", found=False)
 
-        # pyautogui Box is left, top, width, height
-        bbox = (int(box.left), int(box.top), int(box.width), int(box.height))
         return DetectResult(
             name=name,
             kind="image",
             found=True,
             bbox=bbox,
-            extra={"path": cfg["path"], "confidence": cfg.get("confidence", 0.85)},
+            extra=extra,
         )
 
     raise ValueError(f"Unknown detector kind: {kind}")
@@ -224,16 +234,18 @@ def run_detector(
 def run_detectors(
     detector_names: List[str],
     hits: List["OcrHit"],
+    frame_bgr: np.ndarray,
+    bank: "TemplateBank",
 ) -> Dict[str, DetectResult]:
     out: Dict[str, DetectResult] = {}
     for name in detector_names:
         cfg = DETECTORS[name]
-        out[name] = run_detector(name, cfg, hits)
+        out[name] = run_detector(name, cfg, hits, frame_bgr, bank)
     return out
 
 
 # =========================
-# OPTIONAL: SIMPLE CACHE
+# SIMPLE CACHE
 # Caches bbox results so you do not re-search every scan
 # Clear this cache when you detect a crash or when you intentionally reset the UI
 # =========================
@@ -255,17 +267,90 @@ class DetectorCache:
     def set(self, name: str, result: DetectResult):
         self._data[name] = (result, time.time())
 
-    def get_or_run(self, name: str, hits: List["OcrHit"], refresh: bool = False) -> DetectResult:
+    def get_or_run(
+            self, 
+            name: str,
+            hits: List["OcrHit"],
+            frame_bgr: np.ndarray,
+            bank: "TemplateBank",
+            refresh: bool = False
+            ) -> DetectResult:
         if not refresh:
             cached = self.get(name)
             if cached and cached.found:
                 return cached
 
         cfg = DETECTORS[name]
-        res = run_detector(name, cfg, hits)
+        res = run_detector(name, cfg, hits, frame_bgr, bank)
+
         if res.found:
             self.set(name, res)
+
         return res
+    
+# =========================
+# FAST TEMPLATE MATCHING MODULES
+# =========================
+class TemplateBank:
+    """
+    Loads template images once and keeps them in memory as cv2 BGR arrays.
+    """
+    def __init__(self):
+        self._cache = {}  # path -> cv2 image (BGR)
+
+    def get(self, path: str):
+        if path in self._cache:
+            return self._cache[path]
+
+        img = cv2.imread(path, cv2.IMREAD_COLOR)  # BGR
+        if img is None:
+            raise FileNotFoundError(f"Template could not be read: {path}")
+        self._cache[path] = img
+        return img
+
+    def clear(self):
+        self._cache.clear()
+
+
+def match_template_once(frame_bgr: np.ndarray, templ_bgr: np.ndarray) -> tuple[float, tuple[int, int]]:
+    """
+    Returns: (max_score, (x, y)) where (x, y) is top-left in frame coords.
+    Uses normalized correlation coefficient.
+    """
+    result = cv2.matchTemplate(frame_bgr, templ_bgr, cv2.TM_CCOEFF_NORMED)
+    min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
+    return float(max_val), (int(max_loc[0]), int(max_loc[1]))
+
+
+def find_any_template_in_frame(
+    frame_bgr: np.ndarray,
+    template_paths: list[str],
+    bank: TemplateBank,
+    threshold: float = 0.82,
+) -> tuple[tuple[int, int, int, int] | None, dict | None]:
+    """
+    Try multiple templates against the SAME frame.
+    Returns:
+      bbox (x,y,w,h) if found else None,
+      extra info dict (matched_path, score) if found else None
+    """
+    best_score = -1.0
+    best_bbox = None
+    best_path = None
+
+    for path in template_paths:
+        templ = bank.get(path)
+        score, (x, y) = match_template_once(frame_bgr, templ)
+        if score > best_score:
+            best_score = score
+            best_path = path
+            h, w = templ.shape[:2]
+            best_bbox = (x, y, w, h)
+
+    if best_score >= threshold and best_bbox is not None:
+        return best_bbox, {"matched_path": best_path, "score": best_score}
+
+    return None, None
 
 
 # =========================
@@ -483,6 +568,9 @@ class App:
 
         # Detector cache
         self.det_cache = DetectorCache()
+
+        # Template bank
+        self.templates = TemplateBank()
 
         self._build_ui()
 
@@ -711,6 +799,9 @@ class App:
 
             # 1) Capture
             pil_img = grab_full_desktop_pil()
+            # Convert PIL screenshot (RGB) -> OpenCV frame (BGR) once per scan
+            frame_rgb = np.array(pil_img)
+            frame_bgr = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
 
             # 2) OCR -> hits
             hits = ocr_image_to_hits(pil_img, conf_threshold=int(self.conf_threshold.get()))
@@ -722,8 +813,11 @@ class App:
                 "END_RUN_TEXT",
                 "AUTO_TEXT",
             ]
-            results = {name: self.det_cache.get_or_run(name, hits, refresh=force_refresh) for name in detector_names}
 
+            results = {
+                name: self.det_cache.get_or_run(name, hits, frame_bgr, self.templates, refresh=False)
+                for name in detector_names
+        }
             # 4) Build signals from detector results
             signals = {
                 "has_auto_red": results["AUTO_RED_ICON"].found,
