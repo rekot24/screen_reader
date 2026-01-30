@@ -772,8 +772,6 @@ class App:
                     hay = (name + " " + (r.text or "")).lower()
                     if flt not in hay:
                         continue
-                self._log(f"  DETECT: {name} kind={r.kind} found={r.found} bbox={r.bbox} text='{r.text}' conf={r.conf}")
-
                 self._log(
                     f"  DETECT: {name} kind={r.kind} found={r.found} "
                     f"bbox={r.bbox} text='{r.text}' conf={r.conf}"
