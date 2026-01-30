@@ -48,7 +48,7 @@ from pyscreeze import ImageNotFoundException
 APP_DIR = Path(__file__).resolve().parent
 ASSETS_DIR = APP_DIR / "assets"
 # Target window title substring to activate before capture (case-insensitive).
-TARGET_WINDOW_TITLE_CONTAINS = "monkey"
+TARGET_WINDOW_TITLE_CONTAINS = "Roblox"
 ACTIVATE_BEFORE_CAPTURE = True
 
 # If your laptop has Tesseract installed and you want a fixed path, set it here.
