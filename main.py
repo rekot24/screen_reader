@@ -42,6 +42,8 @@ import pytesseract
 import pyautogui
 from pyscreeze import ImageNotFoundException
 
+from window_manager import EnforceConfig, ensure_window
+
 # =========================
 # USER CONFIG
 # =========================
@@ -58,6 +60,12 @@ TESSERACT_EXE_PATH = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 if TESSERACT_EXE_PATH:
     pytesseract.pytesseract.tesseract_cmd = TESSERACT_EXE_PATH
 
+ENFORCE_WINDOW_BEFORE_SCAN = True
+# Monitor 1 means primary monitor in MSS.
+# (This matches how you capture monitor 1 in MSS.)
+TARGET_MONITOR_INDEX = 1
+TARGET_CLIENT_W = 1280
+TARGET_CLIENT_H = 720
 
 # =========================
 # DATA MODELS (dataclasses)
