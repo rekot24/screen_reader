@@ -44,6 +44,10 @@ from pyscreeze import ImageNotFoundException
 
 from window_manager import EnforceConfig, ensure_window
 
+from click_points import CLICK_POINTS
+from clicker import click_point
+from state_machine import resolve_state
+
 # =========================
 # USER CONFIG
 # =========================
