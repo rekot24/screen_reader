@@ -48,6 +48,8 @@ from click_points import CLICK_POINTS
 from clicker import click_point
 from state_machine import resolve_state
 
+import states
+
 # =========================
 # USER CONFIG
 # =========================
