@@ -370,10 +370,12 @@ from datetime import datetime
 DEBUG_SAVE_SCREENSHOTS = True          # set False to stop saving
 DEBUG_SCREENSHOT_DIR = "debug_shots"   # folder inside your project
 DEBUG_SAVE_EVERY_SCAN = False          # True = save every scan, False = only on Single Scan
+
 def project_dir() -> str:
     # Folder where this script lives (stable)
     return os.path.dirname(os.path.abspath(__file__))
-def save_debug_screenshot(pil_img, subfolder="debug_shots", prefix="desktop") -> str:
+
+def save_debug_screenshot(pil_img, subfolder=DEBUG_SCREENSHOT_DIR, prefix="desktop") -> str:
     """
     Saves a PIL image into <project folder>/<subfolder>/prefix_timestamp.png
     Returns the file path.
@@ -387,6 +389,7 @@ def save_debug_screenshot(pil_img, subfolder="debug_shots", prefix="desktop") ->
 
     pil_img.save(path, format="PNG")
     return path
+
 def draw_ocr_boxes(pil_img: Image.Image, hits: List[OcrHit], max_boxes: Optional[int] = None) -> Image.Image:
     """
     Returns a COPY of the image with OCR bounding boxes drawn on it.
@@ -414,6 +417,7 @@ def draw_ocr_boxes(pil_img: Image.Image, hits: List[OcrHit], max_boxes: Optional
         draw.text((x, text_y), label, fill="yellow")
 
     return out
+
 # =========================
 # DEBUG SECTION END
 # =========================
@@ -491,6 +495,25 @@ def ocr_image_to_hits(pil_img: Image.Image, conf_threshold: int = 60) -> List[Oc
 
     return hits
 
+def grab_rect_pil(left: int, top: int, width: int, height: int) -> Image.Image:
+    """
+    Capture a specific rectangle of the desktop using MSS and return a PIL Image.
+
+    This is much faster than capturing all monitors.
+    Coordinates are in global screen space (same as MSS monitor coords).
+    """
+    with mss.mss() as sct:
+        region = {"left": int(left), "top": int(top), "width": int(width), "height": int(height)}
+        frame = sct.grab(region)
+        return Image.frombytes("RGB", frame.size, frame.rgb)
+    
+def to_grayscale(pil_img: Image.Image) -> Image.Image:
+    """
+    Convert RGB image to grayscale.
+    Tesseract often performs better on grayscale than raw RGB.
+    """
+    return pil_img.convert("L")
+
 
 # =========================
 # ACTIVATE TARGET WINDOW HELPERS
@@ -559,6 +582,13 @@ class App:
         self.root = root
         self.root.title("Bare OCR Framework")
 
+        # Window enforcement config
+        self.window_cfg = EnforceConfig(
+            title_contains=TARGET_WINDOW_TITLE_CONTAINS,
+            monitor_index=TARGET_MONITOR_INDEX,
+            target_client_w=TARGET_CLIENT_W,
+            target_client_h=TARGET_CLIENT_H,
+        )
         # Thread control
         self._stop_event = threading.Event()
         self._worker_thread: Optional[threading.Thread] = None
@@ -795,22 +825,26 @@ class App:
         try:
             t0 = time.time()
 
-            if ACTIVATE_BEFORE_CAPTURE:
-                hwnd = find_window_by_title_contains(TARGET_WINDOW_TITLE_CONTAINS)
-                if hwnd:
-                    ok = activate_window(hwnd)
-                    self._log(f"[focus] activate '{TARGET_WINDOW_TITLE_CONTAINS}' ok={ok}")
-                    # Small delay helps Windows finish repainting before capture
-                    time.sleep(0.15)
-                else:
-                    self._log(f"[focus] window not found for title contains: '{TARGET_WINDOW_TITLE_CONTAINS}'")
+            if ENFORCE_WINDOW_BEFORE_SCAN:
+                # This does fast checks first and only enforces if something is wrong.
+                # Safe to call before every scan.
+                st = ensure_window(self.window_cfg, log_fn=self._log)
+                if not st:
+                    self._log("[scan] window not found, skipping scan")
+                    return
 
             # 1) Capture
-            pil_img = grab_full_desktop_pil()
+            # pil_img = grab_full_desktop_pil()
+            wl, wt, wr, wb = st.win_rect
+            w = wr - wl
+            h = wb - wt
+
+            pil_img = grab_rect_pil(wl, wt, w, h)
+
             # Convert PIL screenshot (RGB) -> OpenCV frame (BGR) once per scan
             frame_rgb = np.array(pil_img)
             frame_bgr = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
-
+            
             # 2) OCR -> hits
             hits = ocr_image_to_hits(pil_img, conf_threshold=int(self.conf_threshold.get()))
 
@@ -825,7 +859,8 @@ class App:
             results = {
                 name: self.det_cache.get_or_run(name, hits, frame_bgr, self.templates, refresh=False)
                 for name in detector_names
-        }
+            }
+
             # 4) Build signals from detector results
             signals = {
                 "has_auto_red": results["AUTO_RED_ICON"].found,
@@ -842,12 +877,13 @@ class App:
             # You can later comment this out or reduce it.
             # =========================
             # Saves an annotated screenshot with bounding boxes around OCR hits
-            try:
-                annotated = draw_ocr_boxes(pil_img, hits, max_boxes=None)  # None = draw ALL
-                saved_path = save_debug_screenshot(annotated, subfolder="debug_shots", prefix="annotated")
-                self._log(f"[debug] saved annotated screenshot: {saved_path}")
-            except Exception as e:
-                self._log(f"[debug] annotated save FAILED: {type(e).__name__}: {e}")
+            if DEBUG_SAVE_SCREENSHOTS and (DEBUG_SAVE_EVERY_SCAN or (not self.is_running.get())):
+                try:
+                    annotated = draw_ocr_boxes(pil_img, hits, max_boxes=None)  # None = draw ALL
+                    saved_path = save_debug_screenshot(annotated, subfolder="debug_shots", prefix="annotated")
+                    self._log(f"[debug] saved annotated screenshot: {saved_path}")
+                except Exception as e:
+                    self._log(f"[debug] annotated save FAILED: {type(e).__name__}: {e}")
 
             now = time.strftime("%H:%M:%S")
             self._log(f"[scan {now}] hits={len(hits)}  dt={dt_ms}ms  signals={signals}")
