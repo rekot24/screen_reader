@@ -137,6 +137,27 @@ DETECTORS: Dict[str, Dict[str, Any]] = {
         ],
         "confidence": 0.82,
     },
+    "END_RUN_BUTTON": {
+        "kind": "image",
+        "paths": [
+            str(ASSETS_DIR / "end_run.png"),
+        ],
+        "confidence": 0.82,
+    },
+    "TO_LOBBY_BUTTON": {
+        "kind": "image",
+        "paths": [
+            str(ASSETS_DIR / "to_lobby.png"),
+        ],
+        "confidence": 0.82,
+    },
+    "SWITCH_FISH_ICON": {
+        "kind": "image",
+        "paths": [
+            str(ASSETS_DIR / "switch_fish_ICON.png"),
+        ],
+        "confidence": 0.82,
+    }
 }
 
 pyautogui.FAILSAFE = True
@@ -610,8 +631,8 @@ class App:
         # Thread-safe queue to send text output to the GUI
         self.ui_queue: "queue.Queue[str]" = queue.Queue()
 
-        # Detector cache
-        self.det_cache = DetectorCache()
+        # Detector cache. cache removed since using hard coded locations
+        # self.det_cache = DetectorCache()
 
         # Template bank
         self.templates = TemplateBank()
@@ -855,17 +876,32 @@ class App:
             hits = ocr_image_to_hits(pil_img, conf_threshold=int(self.conf_threshold.get()))
 
             # 3) Run detectors (choose which ones you care about for now)
+            """
             detector_names = [
                 "AUTO_RED_ICON",
                 "AUTO_GREEN_ICON",
                 "END_RUN_TEXT",
                 "AUTO_TEXT",
-            ]
+                "END_RUN_BUTTON",
+            ]"""
+            # run all detectors in the registry
+            detector_names = list(DETECTORS.keys())  
 
-            results = {
+            # Use the cache for detectors that are already found, otherwise run them.
+            # Removed since using hard coded locations
+            """ results = {
                 name: self.det_cache.get_or_run(name, hits, frame_bgr, self.templates, refresh=False)
                 for name in detector_names
             }
+            """
+
+            # For state_machine detection to determine state, we want to run all detectors fresh every scan (no cache).
+            results = run_detectors(
+                detector_names=detector_names,
+                hits=hits,
+                frame_bgr=frame_bgr,
+                bank=self.templates,
+            )
 
             # 4) Build signals from detector results
             signals = {
@@ -891,8 +927,9 @@ class App:
                 except Exception as e:
                     self._log(f"[debug] annotated save FAILED: {type(e).__name__}: {e}")
 
-            now = time.strftime("%H:%M:%S")
-            self._log(f"[scan {now}] hits={len(hits)}  dt={dt_ms}ms  signals={signals}")
+            # Signals already printed from detectors, so removing for now
+            """ now = time.strftime("%H:%M:%S")
+            self._log(f"[scan {now}] hits={len(hits)}  dt={dt_ms}ms  signals={signals}") """
 
             # Print top hits by confidence
             flt = self.debug_filter.get().strip().lower()
@@ -922,9 +959,9 @@ class App:
                 )
             
             # Print cached detectors (what is currently "sticky" across scans)
-            cached = self.det_cache.keys()
+            """ cached = self.det_cache.keys()
             if cached:
-                self._log(f"  CACHE: {cached}")
+                self._log(f"  CACHE: {cached}") """
             
             # Save screenshot if enabled
             try:
