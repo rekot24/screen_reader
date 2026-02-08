@@ -32,3 +32,18 @@ STATE_RULES: List[Dict] = [
         "priority": 60,
     },
 ]
+
+
+# Example pattern for a state rule:
+""" if state == "IN_RUN":
+    # Only click routine if we are sure we are in run
+    click_point(st.win_rect, CLICK_POINTS["AUTO_BUTTON"], clicks=1)
+
+elif state == "DEAD":
+    # Only do death recovery clicks if dead is detected
+    click_point(st.win_rect, CLICK_POINTS["DEATH_CONTINUE"], clicks=1)
+    click_point(st.win_rect, CLICK_POINTS["DEATH_RETRY"], clicks=1)
+
+else:
+    # Unknown means do nothing except log
+    self._log("[action] state unknown, not clicking") """
