@@ -55,29 +55,23 @@ import states
 # =========================
 import debugging
 
-
 # =========================
-# USER CONFIG
+# CONFIG LOADER
 # =========================
-APP_DIR = Path(__file__).resolve().parent
-ASSETS_DIR = APP_DIR / "assets"
-# Target window title substring to activate before capture (case-insensitive).
-TARGET_WINDOW_TITLE_CONTAINS = "Roblox"
-ACTIVATE_BEFORE_CAPTURE = True
+from config_loader import load_config, validate_template_files, print_config_summary
 
-# If your laptop has Tesseract installed and you want a fixed path, set it here.
-# If Tesseract is already on PATH, you can leave this as None.
-TESSERACT_EXE_PATH = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+# Load configuration at module level
+try:
+    CONFIG = load_config()
+    print_config_summary(CONFIG)
+except Exception as e:
+    print(f"[FATAL] Failed to load config: {e}")
+    import sys
+    sys.exit(1)
 
-if TESSERACT_EXE_PATH:
-    pytesseract.pytesseract.tesseract_cmd = TESSERACT_EXE_PATH
-
-ENFORCE_WINDOW_BEFORE_SCAN = True
-# Monitor 1 means primary monitor in MSS.
-# (This matches how you capture monitor 1 in MSS.)
-TARGET_MONITOR_INDEX = 1
-TARGET_CLIENT_W = 1280
-TARGET_CLIENT_H = 720
+# Configure Tesseract from config
+if CONFIG.tesseract_exe_path:
+    pytesseract.pytesseract.tesseract_cmd = CONFIG.tesseract_exe_path
 
 # =========================
 # DATA MODELS (dataclasses)
@@ -111,63 +105,12 @@ class DetectResult:
     extra: Optional[Dict[str, Any]] = None
 
 
-# Registry that defines all detection rules in one place
-DETECTORS: Dict[str, Dict[str, Any]] = {
-    # OCR detectors
-    # token is substring match against OCR hits, case-insensitive
-    "END_RUN_TEXT": {
-        "kind": "ocr",
-        "token": "End Run",           # placeholder, you edit later
-        "min_conf": 40,               # per-detector threshold
-    },
-    "AUTO_TEXT": {
-        "kind": "ocr",
-        "token": "Auto",              # placeholder
-        "min_conf": 30,
-    },
+# Detectors are now loaded from CONFIG
+# Access via: CONFIG.detectors
 
-    # IMAGE detectors (template matching)
-    "AUTO_RED_ICON": {
-        "kind": "image",
-        "paths": [
-            str(ASSETS_DIR / "auto_red.png"),
-            str(ASSETS_DIR / "auto_red_alt.png"),
-        ],
-        "confidence": 0.82,
-    },
-    "AUTO_GREEN_ICON": {
-        "kind": "image",
-        "paths": [
-            str(ASSETS_DIR / "auto_green.png"),
-            str(ASSETS_DIR / "auto_green_alt.png"),
-        ],
-        "confidence": 0.82,
-    },
-    "END_RUN_BUTTON": {
-        "kind": "image",
-        "paths": [
-            str(ASSETS_DIR / "end_run.png"),
-        ],
-        "confidence": 0.82,
-    },
-    "TO_LOBBY_BUTTON": {
-        "kind": "image",
-        "paths": [
-            str(ASSETS_DIR / "to_lobby.png"),
-        ],
-        "confidence": 0.82,
-    },
-    "SWITCH_FISH_ICON": {
-        "kind": "image",
-        "paths": [
-            str(ASSETS_DIR / "switch_fish_ICON.png"),
-        ],
-        "confidence": 0.82,
-    }
-}
-
-pyautogui.FAILSAFE = True
-pyautogui.PAUSE = 0.02
+# Configure PyAutoGUI from config
+pyautogui.FAILSAFE = CONFIG.pyautogui_failsafe
+pyautogui.PAUSE = CONFIG.pyautogui_pause
 
 def find_image_on_screen(template_path: str, confidence: float = 0.85, timeout_s: float = 2.0):
     """
@@ -277,10 +220,11 @@ def run_detectors(
     hits: List["OcrHit"],
     frame_bgr: np.ndarray,
     bank: "TemplateBank",
+    detectors_dict: Dict[str, Dict[str, Any]],
 ) -> Dict[str, DetectResult]:
     out: Dict[str, DetectResult] = {}
     for name in detector_names:
-        cfg = DETECTORS[name]
+        cfg = detectors_dict[name]
         out[name] = run_detector(name, cfg, hits, frame_bgr, bank)
     return out
 
@@ -374,18 +318,6 @@ if sys.platform.startswith("win"):
 # OCR ENGINE
 # =========================
 
-def grab_full_desktop_pil() -> Image.Image:
-    """
-    Capture the full virtual desktop (all monitors) and return a PIL image.
-    This keeps the coordinate system consistent across crashes and window moves.
-    """
-    with mss.mss() as sct:
-        monitor = sct.monitors[0]  # 0 means "all monitors" in MSS
-        frame = sct.grab(monitor)
-        img = Image.frombytes("RGB", frame.size, frame.rgb)
-        return img
-
-
 def ocr_image_to_hits(pil_img: Image.Image, conf_threshold: int = 60) -> List[OcrHit]:
     """
     Run Tesseract OCR and convert results into a list of OcrHit objects.
@@ -433,13 +365,6 @@ def grab_rect_pil(left: int, top: int, width: int, height: int) -> Image.Image:
         region = {"left": int(left), "top": int(top), "width": int(width), "height": int(height)}
         frame = sct.grab(region)
         return Image.frombytes("RGB", frame.size, frame.rgb)
-    
-def to_grayscale(pil_img: Image.Image) -> Image.Image:
-    """
-    Convert RGB image to grayscale.
-    Tesseract often performs better on grayscale than raw RGB.
-    """
-    return pil_img.convert("L")
 
 
 # =========================
@@ -511,18 +436,18 @@ class App:
 
         # Window enforcement config
         self.window_cfg = EnforceConfig(
-            title_contains=TARGET_WINDOW_TITLE_CONTAINS,
-            monitor_index=TARGET_MONITOR_INDEX,
-            target_client_w=TARGET_CLIENT_W,
-            target_client_h=TARGET_CLIENT_H,
+            title_contains=CONFIG.target_window_title,
+            monitor_index=CONFIG.target_monitor_index,
+            target_client_w=CONFIG.target_client_w,
+            target_client_h=CONFIG.target_client_h,
         )
         # Thread control
         self._stop_event = threading.Event()
         self._worker_thread: Optional[threading.Thread] = None
 
         # UI variables
-        self.refresh_ms = tk.IntVar(value=800)
-        self.conf_threshold = tk.IntVar(value=60)
+        self.refresh_ms = tk.IntVar(value=CONFIG.default_refresh_ms)
+        self.conf_threshold = tk.IntVar(value=CONFIG.default_conf_threshold)
         self.is_running = tk.BooleanVar(value=False)
 
         # Debug filter Safe to remove later
@@ -578,21 +503,18 @@ class App:
 
         ttk.Label(refresh_frame, text="Refresh (ms):").grid(row=0, column=0, sticky="w", padx=(0, 6))
 
-        # Spinbox with:
-        # - min 500
-        # - max 3000
-        # - step 100
+        # Spinbox with values from CONFIG
         self.spin_refresh = ttk.Spinbox(
             refresh_frame,
-            from_=500,
-            to=3000,
-            increment=100,
+            from_=CONFIG.min_refresh_ms,
+            to=CONFIG.max_refresh_ms,
+            increment=CONFIG.refresh_step,
             textvariable=self.refresh_ms,
             width=8
         )
         self.spin_refresh.grid(row=0, column=1, sticky="w")
 
-        ttk.Label(refresh_frame, text="(min 500, max 3000, step 100)").grid(row=0, column=2, padx=(8, 0))
+        ttk.Label(refresh_frame, text=f"(min {CONFIG.min_refresh_ms}, max {CONFIG.max_refresh_ms}, step {CONFIG.refresh_step})").grid(row=0, column=2, padx=(8, 0))
 
         # Confidence threshold
         conf_frame = ttk.Frame(controls)
@@ -600,9 +522,9 @@ class App:
         ttk.Label(conf_frame, text="OCR confidence threshold:").grid(row=0, column=0, padx=(0, 6))
         ttk.Spinbox(
             conf_frame,
-            from_=0,
-            to=100,
-            increment=5,
+            from_=CONFIG.min_conf,
+            to=CONFIG.max_conf,
+            increment=CONFIG.conf_step,
             textvariable=self.conf_threshold,
             width=8
         ).grid(row=0, column=1, sticky="w")
@@ -731,7 +653,7 @@ class App:
 
             # If OCR takes longer than the target, we do not "queue scans".
             # We just run again as soon as possible (with a tiny minimum sleep).
-            sleep_s = max(0.05, target - dt)
+            sleep_s = max(CONFIG.min_sleep_s, target - dt)
             time.sleep(sleep_s)
 
         self._log("[run] stopped")
@@ -744,7 +666,7 @@ class App:
         try:
             t0 = time.time()
 
-            if ENFORCE_WINDOW_BEFORE_SCAN:
+            if CONFIG.enforce_window_before_scan:
                 # This does fast checks first and only enforces if something is wrong.
                 # Safe to call before every scan.
                 st = ensure_window(self.window_cfg, log_fn=self._log)
@@ -753,7 +675,6 @@ class App:
                     return
 
             # 1) Capture
-            # pil_img = grab_full_desktop_pil()
             wl, wt, wr, wb = st.win_rect
             w = wr - wl
             h = wb - wt
@@ -777,7 +698,7 @@ class App:
                 "END_RUN_BUTTON",
             ]"""
             # run all detectors in the registry
-            detector_names = list(DETECTORS.keys())  
+            detector_names = list(CONFIG.detectors.keys())
 
             # For state_machine detection to determine state, we want to run all detectors fresh every scan (no cache).
             results = run_detectors(
@@ -785,15 +706,28 @@ class App:
                 hits=hits,
                 frame_bgr=frame_bgr,
                 bank=self.templates,
+                detectors_dict=CONFIG.detectors,
             )
 
-            # 4) Build signals from detector results
+            # 4) Build signals from detector results (legacy, kept for compatibility)
             signals = {
                 "has_auto_red": results["AUTO_RED_ICON"].found,
                 "has_auto_green": results["AUTO_GREEN_ICON"].found,
                 "has_end_run": results["END_RUN_TEXT"].found,
                 "has_auto_text": results["AUTO_TEXT"].found,
             }
+
+            # 5) Resolve state from detector results using state machine
+            current_state = resolve_state(results)
+            self._log(f"[state] {current_state}")
+
+            # 6) Take actions based on state
+            # This is where you would add your automation logic
+            # Example:
+            # if current_state == states.STATE_IN_RUN:
+            #     click_point(st.win_rect, CLICK_POINTS["AUTO_BUTTON"], clicks=1)
+            # elif current_state == states.STATE_DEAD:
+            #     click_point(st.win_rect, CLICK_POINTS["DEATH_TO_LOBBY"], clicks=1)
 
             dt_ms = int((time.time() - t0) * 1000)
 
@@ -834,6 +768,27 @@ class App:
 
 
 def main():
+    """
+    Main entry point.
+    Validates configuration and starts the GUI.
+    """
+    # Fix #3: Validate that all template files exist
+    missing_files = validate_template_files(CONFIG)
+    if missing_files:
+        print("\n" + "=" * 60)
+        print("ERROR: Missing template files!")
+        print("=" * 60)
+        for missing in missing_files:
+            print(f"  - {missing}")
+        print("=" * 60)
+        print("\nPlease ensure all template files exist before starting.")
+        print("Check your config.yaml and assets folder.\n")
+        import sys
+        sys.exit(1)
+
+    print(f"[startup] All {len(CONFIG.template_paths_map)} template groups validated")
+    print("[startup] Starting GUI...\n")
+
     root = tk.Tk()
     app = App(root)
     root.mainloop()

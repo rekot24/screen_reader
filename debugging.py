@@ -24,13 +24,22 @@ from PIL import ImageDraw
 
 # =========================
 # DEBUG SETTINGS
+# Now loaded from config.yaml via config_loader
 # =========================
 
-DEBUG_SAVE_SCREENSHOTS = True                 # Set to False to disable all screenshot saving.
-DEBUG_SCREENSHOT_DIRNAME = "debug_shots"      # folder inside your project
-# If True, save every scan while scanning continuously.
-# If False, save only on Single Scan (or when not running).
-DEBUG_SAVE_EVERY_SCAN = False
+# Import config at module level to access debug settings
+from config_loader import load_config
+
+try:
+    _CONFIG = load_config()
+    DEBUG_SAVE_SCREENSHOTS = _CONFIG.debug_save_screenshots
+    DEBUG_SCREENSHOT_DIRNAME = _CONFIG.debug_screenshot_subfolder
+    DEBUG_SAVE_EVERY_SCAN = _CONFIG.debug_save_every_scan
+except Exception:
+    # Fallback to defaults if config loading fails
+    DEBUG_SAVE_SCREENSHOTS = True
+    DEBUG_SCREENSHOT_DIRNAME = "debug_shots"
+    DEBUG_SAVE_EVERY_SCAN = False
 
 
 def project_dir() -> Path:

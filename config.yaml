@@ -1,0 +1,103 @@
+# Screen Reader Configuration
+# All paths relative to the project directory unless absolute
+
+# Tesseract OCR Configuration
+tesseract:
+  exe_path: "C:\\Program Files\\Tesseract-OCR\\tesseract.exe"  # Set to null if on PATH
+
+# Window Configuration
+window:
+  title_contains: "Roblox"  # Substring to match (case-insensitive)
+  activate_before_capture: true
+  enforce_before_scan: true
+  monitor_index: 1  # Primary monitor (1 = primary in MSS)
+  target_client_width: 1280
+  target_client_height: 720
+
+# Scan Configuration
+scan:
+  default_refresh_ms: 800
+  min_refresh_ms: 500
+  max_refresh_ms: 3000
+  refresh_step: 100
+  min_sleep_between_scans_s: 0.05
+
+# OCR Configuration
+ocr:
+  default_confidence_threshold: 60
+  min_confidence: 0
+  max_confidence: 100
+  confidence_step: 5
+
+# Template Matching Configuration
+templates:
+  default_confidence: 0.82
+  timeout_seconds: 2.0
+
+# PyAutoGUI Configuration
+automation:
+  failsafe: true
+  pause_between_actions: 0.02
+
+# Debug Configuration
+debug:
+  save_screenshots: true
+  save_every_scan: false  # If false, only saves on single scan
+  screenshot_subfolder: "debug_shots"
+  enable_debug_ui: true
+
+# Asset Paths (relative to project root)
+assets:
+  directory: "assets"
+  templates:
+    auto_red:
+      - "assets/auto_red.png"
+      - "assets/auto_red_alt.png"
+    auto_green:
+      - "assets/auto_green.png"
+      - "assets/auto_green_alt.png"
+    end_run_button:
+      - "assets/end_run.png"
+    to_lobby_button:
+      - "assets/to_lobby.png"
+    switch_fish_icon:
+      - "assets/switch_fish_ICON.png"
+
+# Detector Configuration
+detectors:
+  # OCR detectors
+  END_RUN_TEXT:
+    kind: "ocr"
+    token: "End Run"
+    min_conf: 40
+
+  AUTO_TEXT:
+    kind: "ocr"
+    token: "Auto"
+    min_conf: 30
+
+  # Image detectors (template matching)
+  AUTO_RED_ICON:
+    kind: "image"
+    confidence: 0.82
+    template_key: "auto_red"  # References assets.templates.auto_red
+
+  AUTO_GREEN_ICON:
+    kind: "image"
+    confidence: 0.82
+    template_key: "auto_green"
+
+  END_RUN_BUTTON:
+    kind: "image"
+    confidence: 0.82
+    template_key: "end_run_button"
+
+  TO_LOBBY_BUTTON:
+    kind: "image"
+    confidence: 0.82
+    template_key: "to_lobby_button"
+
+  SWITCH_FISH_ICON:
+    kind: "image"
+    confidence: 0.82
+    template_key: "switch_fish_icon"
