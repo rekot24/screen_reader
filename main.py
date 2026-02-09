@@ -51,12 +51,18 @@ from state_machine import resolve_state
 import states
 
 # =========================
+# DEBUGGING IMPORTS
+# =========================
+import debugging
+
+
+# =========================
 # USER CONFIG
 # =========================
 APP_DIR = Path(__file__).resolve().parent
 ASSETS_DIR = APP_DIR / "assets"
 # Target window title substring to activate before capture (case-insensitive).
-TARGET_WINDOW_TITLE_CONTAINS = "Monkey Run"
+TARGET_WINDOW_TITLE_CONTAINS = "Roblox"
 ACTIVATE_BEFORE_CAPTURE = True
 
 # If your laptop has Tesseract installed and you want a fixed path, set it here.
@@ -278,50 +284,6 @@ def run_detectors(
         out[name] = run_detector(name, cfg, hits, frame_bgr, bank)
     return out
 
-
-# =========================
-# SIMPLE CACHE
-# Caches bbox results so you do not re-search every scan
-# Clear this cache when you detect a crash or when you intentionally reset the UI
-# =========================
-
-class DetectorCache:
-    def __init__(self):
-        self._data: Dict[str, Tuple[DetectResult, float]] = {}
-
-    def keys(self):
-        return list(self._data.keys())
-
-    def clear(self):
-        self._data.clear()
-
-    def get(self, name: str) -> Optional[DetectResult]:
-        item = self._data.get(name)
-        return item[0] if item else None
-
-    def set(self, name: str, result: DetectResult):
-        self._data[name] = (result, time.time())
-
-    def get_or_run(
-            self, 
-            name: str,
-            hits: List["OcrHit"],
-            frame_bgr: np.ndarray,
-            bank: "TemplateBank",
-            refresh: bool = False
-            ) -> DetectResult:
-        if not refresh:
-            cached = self.get(name)
-            if cached and cached.found:
-                return cached
-
-        cfg = DETECTORS[name]
-        res = run_detector(name, cfg, hits, frame_bgr, bank)
-
-        if res.found:
-            self.set(name, res)
-
-        return res
     
 # =========================
 # FAST TEMPLATE MATCHING MODULES
@@ -386,68 +348,6 @@ def find_any_template_in_frame(
         return best_bbox, {"matched_path": best_path, "score": best_score}
 
     return None, None
-
-
-# =========================
-# DEBUG SECTION START
-# =========================
-from PIL import ImageDraw
-import os
-from datetime import datetime
-DEBUG_SAVE_SCREENSHOTS = True          # set False to stop saving
-DEBUG_SCREENSHOT_DIR = "debug_shots"   # folder inside your project
-DEBUG_SAVE_EVERY_SCAN = False          # True = save every scan, False = only on Single Scan
-
-def project_dir() -> str:
-    # Folder where this script lives (stable)
-    return os.path.dirname(os.path.abspath(__file__))
-
-def save_debug_screenshot(pil_img, subfolder=DEBUG_SCREENSHOT_DIR, prefix="desktop") -> str:
-    """
-    Saves a PIL image into <project folder>/<subfolder>/prefix_timestamp.png
-    Returns the file path.
-    Raises exception if it fails (caller should catch/log).
-    """
-    base_dir = os.path.join(project_dir(), subfolder)
-    os.makedirs(base_dir, exist_ok=True)
-
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-    path = os.path.join(base_dir, f"{prefix}_{ts}.png")
-
-    pil_img.save(path, format="PNG")
-    return path
-
-def draw_ocr_boxes(pil_img: Image.Image, hits: List[OcrHit], max_boxes: Optional[int] = None) -> Image.Image:
-    """
-    Returns a COPY of the image with OCR bounding boxes drawn on it.
-    max_boxes can be used to limit how many boxes are drawn (None = all).
-    """
-    out = pil_img.copy()
-    draw = ImageDraw.Draw(out)
-
-    # Optionally sort by confidence so the "best" boxes are drawn first
-    hits_sorted = sorted(hits, key=lambda h: h.conf, reverse=True)
-
-    if max_boxes is not None:
-        hits_sorted = hits_sorted[:max_boxes]
-
-    for h in hits_sorted:
-        x, y, w, hh = h.bbox
-        x2, y2 = x + w, y + hh
-
-        # Rectangle around the OCR hit
-        draw.rectangle([x, y, x2, y2], outline="yellow", width=2)
-
-        # Label (text + conf) drawn above the box if possible
-        label = f"{h.text} ({h.conf})"
-        text_y = y - 14 if y - 14 > 0 else y + 2
-        draw.text((x, text_y), label, fill="yellow")
-
-    return out
-
-# =========================
-# DEBUG SECTION END
-# =========================
 
 
 # =========================
@@ -631,9 +531,6 @@ class App:
         # Thread-safe queue to send text output to the GUI
         self.ui_queue: "queue.Queue[str]" = queue.Queue()
 
-        # Detector cache. cache removed since using hard coded locations
-        # self.det_cache = DetectorCache()
-
         # Template bank
         self.templates = TemplateBank()
 
@@ -734,7 +631,6 @@ class App:
         filter_entry.grid(row=0, column=3, sticky="w")
 
         ttk.Button(tools, text="Clear Filter", command=lambda: self.debug_filter.set("")).grid(row=0, column=4, sticky="w", padx=(8, 0))
-        ttk.Button(tools, text="Clear Detector Cache", command=self._clear_cache).grid(row=0, column=0, sticky="w", padx=(0, 8))
 
 
         # =========================
@@ -752,10 +648,6 @@ class App:
 
     def _clear_output(self):
         self.txt.delete("1.0", "end")
-
-    def _clear_cache(self):
-        self.det_cache.clear()
-        self._append_output("[cache] Detector cache cleared")
 
     def _pump_ui_queue(self):
         """
@@ -887,14 +779,6 @@ class App:
             # run all detectors in the registry
             detector_names = list(DETECTORS.keys())  
 
-            # Use the cache for detectors that are already found, otherwise run them.
-            # Removed since using hard coded locations
-            """ results = {
-                name: self.det_cache.get_or_run(name, hits, frame_bgr, self.templates, refresh=False)
-                for name in detector_names
-            }
-            """
-
             # For state_machine detection to determine state, we want to run all detectors fresh every scan (no cache).
             results = run_detectors(
                 detector_names=detector_names,
@@ -913,65 +797,36 @@ class App:
 
             dt_ms = int((time.time() - t0) * 1000)
 
+
             # =========================
-            # DEBUG SECTION START
-            # This output is intentionally verbose so you can learn how OCR behaves.
-            # You can later comment this out or reduce it.
+            # DEBUG OUTPUT
+            # Safe to comment out later
             # =========================
-            # Saves an annotated screenshot with bounding boxes around OCR hits
-            if DEBUG_SAVE_SCREENSHOTS and (DEBUG_SAVE_EVERY_SCAN or (not self.is_running.get())):
+
+            if debugging.DEBUG_SAVE_SCREENSHOTS and (debugging.DEBUG_SAVE_EVERY_SCAN or (not self.is_running.get())):
                 try:
-                    annotated = draw_ocr_boxes(pil_img, hits, max_boxes=None)  # None = draw ALL
-                    saved_path = save_debug_screenshot(annotated, subfolder="debug_shots", prefix="annotated")
+                    annotated = debugging.draw_ocr_boxes(pil_img, hits, max_boxes=None)
+                    saved_path = debugging.save_debug_screenshot(annotated, subfolder="debug_shots", prefix="annotated")
                     self._log(f"[debug] saved annotated screenshot: {saved_path}")
                 except Exception as e:
                     self._log(f"[debug] annotated save FAILED: {type(e).__name__}: {e}")
 
-            # Signals already printed from detectors, so removing for now
-            """ now = time.strftime("%H:%M:%S")
-            self._log(f"[scan {now}] hits={len(hits)}  dt={dt_ms}ms  signals={signals}") """
+            # Print detector results
+            # Option A: keep your loop (works fine)
+            # Option B: use helper so main.py stays clean
+            debugging.log_detectors(results, self._log, filter_text=self.debug_filter.get())
 
-            # Print top hits by confidence
-            flt = self.debug_filter.get().strip().lower()
-
-            top = sorted(hits, key=lambda h: h.conf, reverse=True)
-
-            # If a filter is set, show only hits containing that substring (case-insensitive)
-            if flt:
-                top = [h for h in top if flt in h.text.lower()]
-                self._log(f"  [filter] showing only OCR hits containing '{flt}'")
-
-            # top = top[:30] # limit number of printed hits if desired
-
-            for h in top:
-                x, y, w, hh = h.bbox
-                self._log(f"  OCR: conf={h.conf:>3}  text='{h.text}'  bbox=({x},{y},{w},{hh})")
-
-            # Print detector results (new model)
-            for name, r in results.items():
-                if flt:
-                    hay = (name + " " + (r.text or "")).lower()
-                    if flt not in hay:
-                        continue
-                self._log(
-                    f"  DETECT: {name} kind={r.kind} found={r.found} "
-                    f"bbox={r.bbox} text='{r.text}' conf={r.conf}"
-                )
-            
-            # Print cached detectors (what is currently "sticky" across scans)
-            """ cached = self.det_cache.keys()
-            if cached:
-                self._log(f"  CACHE: {cached}") """
-            
-            # Save screenshot if enabled
+            # Save raw screenshot if enabled
             try:
-                if DEBUG_SAVE_EVERY_SCAN or (not self.is_running.get()):
-                    saved_path = save_debug_screenshot(pil_img, subfolder="debug_shots", prefix="desktop")
+                if debugging.DEBUG_SAVE_EVERY_SCAN or (not self.is_running.get()):
+                    saved_path = debugging.save_debug_screenshot(pil_img, subfolder="debug_shots", prefix="desktop")
                     self._log(f"[debug] saved screenshot: {saved_path}")
             except Exception as e:
                 self._log(f"[debug] screenshot save FAILED: {type(e).__name__}: {e}")
+
             # =========================
-            # DEBUG SECTION END
+            # DEBUG OUTPUT END
+            # Safe to comment out later
             # =========================
 
         except Exception as e:

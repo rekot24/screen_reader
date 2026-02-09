@@ -17,14 +17,10 @@ Point = Tuple[int, int]
 # Use placeholder values now, replace them as you measure.
 CLICK_POINTS: Dict[str, Point] = {
     # Example placeholders
-    "START_RUN": (1050, 650),
-    "CONFIRM_OK": (640, 500),
-    "CLOSE_POPUP_X": (1230, 40),
-
-    # Routine navigation examples
-    "DEATH_CONTINUE": (640, 620),
-    "DEATH_RETRY": (640, 680),
-
-    # Click routine example
-    "AUTO_BUTTON": (1150, 640),
+    "AUTO_BUTTON": (1202, 328),
+    "DEATH_TO_LOBBY": (641, 409),
+    "END_RUN_BUTTON": (1054, 667),
+    "MENU_BUTTON": (46, 68),
+    "MENU_LEAVE_BUTTON": (362, 614),
+    "MENU_CONFIRM_BUTTON": (640, 500)
 }
