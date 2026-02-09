@@ -7,7 +7,7 @@ tesseract:
 
 # Window Configuration
 window:
-  title_contains: "Roblox"  # Substring to match (case-insensitive)
+  title_contains: "Monkey Run"  # Substring to match (case-insensitive)
   activate_before_capture: true
   enforce_before_scan: true
   monitor_index: 1  # Primary monitor (1 = primary in MSS)
@@ -61,7 +61,11 @@ assets:
     to_lobby_button:
       - "assets/to_lobby.png"
     switch_fish_icon:
-      - "assets/switch_fish_ICON.png"
+      - "assets/switch_fish_icon.png"
+    leave_button:
+      - "assets/leave_button.png"
+    leave_button_confirm:
+      - "assets/leave_confirm_button.png"
 
 # Detector Configuration
 detectors:
@@ -101,3 +105,13 @@ detectors:
     kind: "image"
     confidence: 0.82
     template_key: "switch_fish_icon"
+
+  LEAVE_BUTTON:
+    kind: "image"
+    confidence: 0.82
+    template_key: "leave_button"
+
+  LEAVE_BUTTON_CONFIRM:
+    kind: "image"
+    confidence: 0.82
+    template_key: "leave_button_confirm"

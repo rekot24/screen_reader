@@ -15,22 +15,40 @@ from typing import Dict, List
 STATE_RULES: List[Dict] = [
     {
         "state": "DEAD",
-        "require_all": ["DEATH_TEXT"],
+        "require_all": ["TO_LOBBY_BUTTON"],
         "require_none": [],
         "priority": 100,
     },
     {
         "state": "IN_RUN",
-        "require_all": ["END_RUN_TEXT"],
-        "require_none": ["DEATH_TEXT"],
+        "require_all": ["END_RUN_ICON", "AUTO_GREEN_ICON"],
+        "require_none": ["TO_LOBBY_BUTTON", "SWITCH_FISH_ICON", "LEAVE_BUTTON", "LEAVE_BUTTON_CONFIRM"],
         "priority": 80,
     },
     {
         "state": "MENU",
-        "require_all": ["START_BUTTON_TEXT"],
+        "require_all": ["LEAVE_BUTTON"],
         "require_none": [],
         "priority": 60,
     },
+    {
+        "state": "NET_REVEAL",
+        "require_all": [],
+        "require_none": ["TO_LOBBY_BUTTON", "END_RUN_ICON", "AUTO_BUTTON_ICON"],
+        "priority": 50,
+    },
+    {
+        "state": "STUCK_IN_LOBBY",
+        "require_all": ["SWITCH_FISH_ICON", "END_RUN_ICON"],
+        "require_none": ["TO_LOBBY_BUTTON"],
+        "priority": 40,
+    },
+    {
+        "state": "MENU_CONFIRMATION",
+        "require_all": ["LEAVE_BUTTON_CONFIRM"],
+        "require_none": [],
+        "priority": 30,
+    }
 ]
 
 
