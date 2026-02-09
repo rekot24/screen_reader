@@ -726,8 +726,6 @@ class App:
             signals = {
                 "has_auto_red": results["AUTO_RED_ICON"].found,
                 "has_auto_green": results["AUTO_GREEN_ICON"].found,
-                "has_end_run": results["END_RUN_TEXT"].found,
-                "has_auto_text": results["AUTO_TEXT"].found,
             }
 
             # 5) Resolve state from detector results using state machine
@@ -737,8 +735,8 @@ class App:
             # 6) Take actions based on state
             # This is where you would add your automation logic
             # Example:
-            if current_state == states.STATE_IN_RUN:
-                click_point(st.win_rect, CLICK_POINTS["AUTO_BUTTON"], clicks=2)
+            #if current_state == states.STATE_IN_RUN:
+            #    click_point(st.win_rect, CLICK_POINTS["AUTO_BUTTON"], clicks=2)
             # elif current_state == states.STATE_DEAD:
             #     click_point(st.win_rect, CLICK_POINTS["DEATH_TO_LOBBY"], clicks=1)
 
@@ -750,6 +748,7 @@ class App:
             # Safe to comment out later
             # =========================
 
+            # Annotated Screen Shot Save
             if debugging.DEBUG_SAVE_SCREENSHOTS and (debugging.DEBUG_SAVE_EVERY_SCAN or (not self.is_running.get())):
                 try:
                     annotated = debugging.draw_ocr_boxes(pil_img, hits, max_boxes=None)

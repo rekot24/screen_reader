@@ -16,7 +16,7 @@ window:
 # NEW: Application launch settings
   exe_path: "C:\\Users\\joshu\\AppData\\Local\\Roblox\\Versions\\version-42512dc682084cf7\\RobloxPlayerBeta.exe"  # Path to executable
   launch_if_not_found: true  # Auto-launch if not running
-  wait_after_launch_s: 8.0  # Wait time after launching before continuing
+  wait_after_launch_s: 15.0  # Wait time after launching before continuing
 
 # Scan Configuration
 scan:
@@ -72,6 +72,14 @@ assets:
       - "assets/leave_confirm_button.png"
     disconnected_icon:
       - "assets/disconnected_icon.png"
+    home_screen_icon:
+      - "assets/home_screen.png"
+    fish_menu_screen:
+      - "assets/fish_menu.png"
+    quick_join_icon:
+      - "assets/quick_join.png"
+    private_servers_list:
+      - "assets/private_servers.png"
 
 # Detector Configuration
 detectors:
@@ -126,3 +134,23 @@ detectors:
     kind: "image"
     confidence: 0.82
     template_key: "disconnected_icon"
+
+  HOME_SCREEN_ICON:
+    kind: "image"
+    confidence: 0.82
+    template_key: "home_screen_icon"
+  
+  FISH_MENU_SCREEN:
+    kind: "image"
+    confidence: 0.82
+    template_key: "fish_menu_screen"
+  
+  QUICK_JOIN_ICON:
+    kind: "image"
+    confidence: 0.82
+    template_key: "quick_join_icon"
+  
+  SERVER_MENU:
+    kind: "image"
+    confidence: 0.82
+    template_key: "private_servers_list"

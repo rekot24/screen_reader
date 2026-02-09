@@ -21,7 +21,7 @@ STATE_RULES: List[Dict] = [
     },
     {
         "state": "IN_RUN",
-        "require_all": ["END_RUN_ICON", "AUTO_GREEN_ICON"],
+        "require_all": ["END_RUN_BUTTON", "AUTO_GREEN_ICON"],
         "require_none": ["TO_LOBBY_BUTTON", "SWITCH_FISH_ICON", "LEAVE_BUTTON", "LEAVE_BUTTON_CONFIRM"],
         "priority": 80,
     },
@@ -60,6 +60,24 @@ STATE_RULES: List[Dict] = [
         "require_all": ["DISCONNECTED_ICON"],
         "require_none": [],
         "priority": 90,
+    },
+    {
+        "state": "HOME_SCREEN",
+        "require_all": ["HOME_SCREEN_ICON"],
+        "require_none": ["TO_LOBBY_BUTTON", "END_RUN_ICON", "AUTO_BUTTON_ICON", "SWITCH_FISH_ICON", "LEAVE_BUTTON", "LEAVE_BUTTON_CONFIRM"],
+        "priority": 70,
+    },
+    {
+        "state": "FISH_MENU",
+        "require_all": ["SWITCH_FISH_ICON"],
+        "require_none": ["END_RUN_ICON", "TO_LOBBY_BUTTON"],
+        "priority": 65,
+    },
+    {
+        "state": "SERVER_MENU",
+        "require_all": ["SERVER_MENU_ICON"],
+        "require_none": ["END_RUN_ICON", "TO_LOBBY_BUTTON", "SWITCH_FISH_ICON"],
+        "priority": 55,
     },
 ]
 
