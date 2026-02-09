@@ -48,7 +48,19 @@ STATE_RULES: List[Dict] = [
         "require_all": ["LEAVE_BUTTON_CONFIRM"],
         "require_none": [],
         "priority": 30,
-    }
+    },
+    {   
+        "state": "GAME_CLOSED",
+        "require_all": [],
+        "require_none": ["TO_LOBBY_BUTTON", "END_RUN_ICON", "AUTO_BUTTON_ICON", "SWITCH_FISH_ICON", "LEAVE_BUTTON", "LEAVE_BUTTON_CONFIRM"],
+        "priority": 20,
+    },
+    {
+        "state": "DISCONNECTED",
+        "require_all": ["DISCONNECTED_ICON"],
+        "require_none": [],
+        "priority": 90,
+    },
 ]
 
 

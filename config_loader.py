@@ -26,6 +26,9 @@ class Config:
     target_monitor_index: int
     target_client_w: int
     target_client_h: int
+    window_exe_path: Optional[str]
+    launch_if_not_found: bool
+    wait_after_launch_s: float
 
     # Scan config
     default_refresh_ms: int
@@ -148,6 +151,9 @@ def load_config(config_path: Optional[Path] = None) -> Config:
             target_monitor_index=window["monitor_index"],
             target_client_w=window["target_client_width"],
             target_client_h=window["target_client_height"],
+            window_exe_path=window.get("exe_path"),
+            launch_if_not_found=window.get("launch_if_not_found", False),
+            wait_after_launch_s=window.get("wait_after_launch_s", 5.0),
 
             default_refresh_ms=scan["default_refresh_ms"],
             min_refresh_ms=scan["min_refresh_ms"],
@@ -212,6 +218,9 @@ def print_config_summary(config: Config):
     print(f"Assets Directory: {config.assets_dir}")
     print(f"Target Window: {config.target_window_title}")
     print(f"Window Size: {config.target_client_w}x{config.target_client_h}")
+    print(f"Auto-launch: {config.launch_if_not_found}")
+    if config.window_exe_path:
+        print(f"Executable: {config.window_exe_path}")
     print(f"Default Refresh: {config.default_refresh_ms}ms")
     print(f"OCR Confidence: {config.default_conf_threshold}")
     print(f"Detectors: {len(config.detectors)}")

@@ -25,11 +25,33 @@ def window_to_screen(win_rect: Tuple[int, int, int, int], pt: Point) -> Point:
     x, y = pt
     return (wl + x, wt + y)
 
-def click_point(win_rect, pt: Point, clicks: int = 1, interval_s: float = 0.0):
+def click_point(
+        win_rect, 
+        pt: Point, 
+        clicks: int = 1, 
+        delay_ms: int | None = None):
     """
     Click at a window relative point.
+
+    Args:
+        win_rect:
+            (left, top, right, bottom) of the window in screen coordinates.
+
+    pt: 
+        (x, y) point relative to the window.
+
+    clicks:
+        Number of clicks to perform.
+
+    delay_ms:
+        Optional delay BETWEEN clicks, in milliseconds.
+        Only relevant when clicks > 1.
+        If None or 0, clicks happen immediately.
     """
     sx, sy = window_to_screen(win_rect, pt)
+
+    # Convert ms to seconds for pyautogui
+    interval_s = (delay_ms / 1000.0) if delay_ms else 0.0
 
     # move the mouse first, then click.
     pyautogui.moveTo(sx, sy)

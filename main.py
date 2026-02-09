@@ -42,6 +42,7 @@ import pytesseract
 import pyautogui
 from pyscreeze import ImageNotFoundException
 
+from process_manager import ensure_process_running
 from window_manager import EnforceConfig, ensure_window
 
 from click_points import CLICK_POINTS
@@ -529,9 +530,8 @@ class App:
             width=8
         ).grid(row=0, column=1, sticky="w")
 
-        # Debug output
         # =========================
-        # DEBUG SECTION START
+        # DEBUG UI SECTION START
         # This whole section is safe to comment out later if you want no debug UI.
         # =========================
         debug = ttk.LabelFrame(outer, text="Debug Output (safe to remove later)", padding=10)
@@ -553,7 +553,6 @@ class App:
         filter_entry.grid(row=0, column=3, sticky="w")
 
         ttk.Button(tools, text="Clear Filter", command=lambda: self.debug_filter.set("")).grid(row=0, column=4, sticky="w", padx=(8, 0))
-
 
         # =========================
         # DEBUG SECTION END
@@ -666,6 +665,20 @@ class App:
         try:
             t0 = time.time()
 
+            # ENSURE PROCESS IS RUNNING
+            process_running = ensure_process_running(
+                title_contains=CONFIG.target_window_title,
+                exe_path=CONFIG.window_exe_path,
+                wait_after_launch_s=CONFIG.wait_after_launch_s,
+                log_fn=self._log,
+                launch_enabled=CONFIG.launch_if_not_found,
+            )
+
+            if not process_running:
+                self._log("[scan] Target application not running, skipping scan")
+                return
+
+            # ENSURE WINDOW EXISTS
             if CONFIG.enforce_window_before_scan:
                 # This does fast checks first and only enforces if something is wrong.
                 # Safe to call before every scan.
@@ -674,7 +687,7 @@ class App:
                     self._log("[scan] window not found, skipping scan")
                     return
 
-            # 1) Capture
+            # Setup capture region and capture screenshot
             wl, wt, wr, wb = st.win_rect
             w = wr - wl
             h = wb - wt
@@ -685,10 +698,12 @@ class App:
             frame_rgb = np.array(pil_img)
             frame_bgr = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
             
-            # 2) OCR -> hits
+            # OCR -> hits
             hits = ocr_image_to_hits(pil_img, conf_threshold=int(self.conf_threshold.get()))
 
-            # 3) Run detectors (choose which ones you care about for now)
+            # Run detectors (choose which ones you care about for now)
+            # run all detectors in the registry
+            detector_names = list(CONFIG.detectors.keys())
             """
             detector_names = [
                 "AUTO_RED_ICON",
@@ -697,8 +712,6 @@ class App:
                 "AUTO_TEXT",
                 "END_RUN_BUTTON",
             ]"""
-            # run all detectors in the registry
-            detector_names = list(CONFIG.detectors.keys())
 
             # For state_machine detection to determine state, we want to run all detectors fresh every scan (no cache).
             results = run_detectors(
@@ -724,8 +737,8 @@ class App:
             # 6) Take actions based on state
             # This is where you would add your automation logic
             # Example:
-            # if current_state == states.STATE_IN_RUN:
-            #     click_point(st.win_rect, CLICK_POINTS["AUTO_BUTTON"], clicks=1)
+            if current_state == states.STATE_IN_RUN:
+                click_point(st.win_rect, CLICK_POINTS["AUTO_BUTTON"], clicks=2)
             # elif current_state == states.STATE_DEAD:
             #     click_point(st.win_rect, CLICK_POINTS["DEATH_TO_LOBBY"], clicks=1)
 

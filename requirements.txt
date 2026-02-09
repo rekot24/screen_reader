@@ -7,3 +7,5 @@ pywin32-stubs
 pyautogui
 opencv-python
 pyyaml
+psutil
+pynput

@@ -7,12 +7,16 @@ tesseract:
 
 # Window Configuration
 window:
-  title_contains: "Monkey Run"  # Substring to match (case-insensitive)
+  title_contains: "Roblox"  # Substring to match (case-insensitive)
   activate_before_capture: true
   enforce_before_scan: true
   monitor_index: 1  # Primary monitor (1 = primary in MSS)
   target_client_width: 1280
   target_client_height: 720
+# NEW: Application launch settings
+  exe_path: "C:\\Users\\joshu\\AppData\\Local\\Roblox\\Versions\\version-42512dc682084cf7\\RobloxPlayerBeta.exe"  # Path to executable
+  launch_if_not_found: true  # Auto-launch if not running
+  wait_after_launch_s: 8.0  # Wait time after launching before continuing
 
 # Scan Configuration
 scan:
@@ -66,6 +70,8 @@ assets:
       - "assets/leave_button.png"
     leave_button_confirm:
       - "assets/leave_confirm_button.png"
+    disconnected_icon:
+      - "assets/disconnected_icon.png"
 
 # Detector Configuration
 detectors:
@@ -115,3 +121,8 @@ detectors:
     kind: "image"
     confidence: 0.82
     template_key: "leave_button_confirm"
+  
+  DISCONNECTED_ICON:
+    kind: "image"
+    confidence: 0.82
+    template_key: "disconnected_icon"
