@@ -56,6 +56,7 @@ class Config:
     debug_save_every_scan: bool
     debug_screenshot_subfolder: str
     debug_enable_ui: bool
+    debug_window_print: bool
 
     # Detectors and templates (raw dicts)
     detectors: Dict[str, Any]
@@ -176,6 +177,7 @@ def load_config(config_path: Optional[Path] = None) -> Config:
             debug_save_every_scan=debug["save_every_scan"],
             debug_screenshot_subfolder=debug["screenshot_subfolder"],
             debug_enable_ui=debug["enable_debug_ui"],
+            debug_window_print=debug.get("window_debug_print", False),
 
             detectors=detectors,
             template_paths_map=template_paths_map,

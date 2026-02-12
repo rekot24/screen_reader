@@ -7,7 +7,7 @@ tesseract:
 
 # Window Configuration
 window:
-  title_contains: "Roblox"  # Substring to match (case-insensitive)
+  title_contains: "roblox"  # Substring to match (case-insensitive)
   activate_before_capture: true
   enforce_before_scan: true
   monitor_index: 1  # Primary monitor (1 = primary in MSS)
@@ -20,7 +20,7 @@ window:
 
 # Scan Configuration
 scan:
-  default_refresh_ms: 800
+  default_refresh_ms: 500
   min_refresh_ms: 500
   max_refresh_ms: 3000
   refresh_step: 100
@@ -45,10 +45,11 @@ automation:
 
 # Debug Configuration
 debug:
-  save_screenshots: true
+  save_screenshots: false
   save_every_scan: false  # If false, only saves on single scan
   screenshot_subfolder: "debug_shots"
   enable_debug_ui: true
+  window_debug_print: false  # Enable/disable window manager logging
 
 # Asset Paths (relative to project root)
 assets:
@@ -80,6 +81,10 @@ assets:
       - "assets/quick_join.png"
     private_servers_list:
       - "assets/private_servers.png"
+    menu_icon:
+      - "assets/menu_icon.png"
+    home_screen_game_icon:
+      - "assets/home_screen_game_icon.png"
 
 # Detector Configuration
 detectors:
@@ -87,12 +92,12 @@ detectors:
   END_RUN_TEXT:
     kind: "ocr"
     token: "End Run"
-    min_conf: 40
+    min_conf: 80
 
   AUTO_TEXT:
     kind: "ocr"
     token: "Auto"
-    min_conf: 30
+    min_conf: 80
 
   # Image detectors (template matching)
   AUTO_RED_ICON:
@@ -154,3 +159,13 @@ detectors:
     kind: "image"
     confidence: 0.82
     template_key: "private_servers_list"
+  
+  MENU_ICON:
+    kind: "image"
+    confidence: 0.82
+    template_key: "menu_icon"
+
+  HOME_SCREEN_GAME_ICON:
+    kind: "image"
+    confidence: 0.82
+    template_key: "home_screen_game_icon"

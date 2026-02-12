@@ -424,6 +424,18 @@ def activate_window(hwnd: int) -> bool:
             return True
         except Exception:
             return False
+
+
+def bbox_center(bbox: Tuple[int, int, int, int]) -> Tuple[int, int]:
+    """
+    Calculate the center point of a bounding box.
+    Args:
+        bbox: (x, y, w, h)
+    Returns:
+        (center_x, center_y)
+    """
+    x, y, w, h = bbox
+    return (x + w // 2, y + h // 2)
         
 
 # =========================
@@ -433,7 +445,7 @@ def activate_window(hwnd: int) -> bool:
 class App:
     def __init__(self, root: tk.Tk):
         self.root = root
-        self.root.title("Bare OCR Framework")
+        self.root.title("Screen Reader")
 
         # Window enforcement config
         self.window_cfg = EnforceConfig(
@@ -450,6 +462,16 @@ class App:
         self.refresh_ms = tk.IntVar(value=CONFIG.default_refresh_ms)
         self.conf_threshold = tk.IntVar(value=CONFIG.default_conf_threshold)
         self.is_running = tk.BooleanVar(value=False)
+
+        # Click timing config (in milliseconds)
+        self.click_timer_ms = tk.IntVar(value=300000)  # Default: 5 minutes (5 * 60 * 1000)
+        self.double_click_delay_ms = tk.IntVar(value=500)  # Default: 0.5 seconds
+        self.last_click_time = 0  # Track when last click occurred
+
+        # Current state tracking
+        self.current_state = tk.StringVar(value="UNKNOWN")
+        self.last_state = "UNKNOWN"
+        self.state_start_time = time.time()
 
         # Debug filter Safe to remove later
         self.debug_filter = tk.StringVar(value="")
@@ -498,37 +520,51 @@ class App:
         self.btn_scan = ttk.Button(btns, text="Single Scan", command=self.single_scan)
         self.btn_scan.grid(row=0, column=2)
 
-        # Refresh Spinbox
-        refresh_frame = ttk.Frame(controls)
-        refresh_frame.grid(row=1, column=0, sticky="w", pady=(10, 0))
+        # Click Timer (below buttons)
+        click_timer_frame = ttk.Frame(controls)
+        click_timer_frame.grid(row=1, column=0, sticky="w", pady=(10, 0))
 
-        ttk.Label(refresh_frame, text="Refresh (ms):").grid(row=0, column=0, sticky="w", padx=(0, 6))
+        ttk.Label(click_timer_frame, text="Click Timer:").grid(row=0, column=0, sticky="w", padx=(0, 6))
 
-        # Spinbox with values from CONFIG
-        self.spin_refresh = ttk.Spinbox(
-            refresh_frame,
-            from_=CONFIG.min_refresh_ms,
-            to=CONFIG.max_refresh_ms,
-            increment=CONFIG.refresh_step,
-            textvariable=self.refresh_ms,
-            width=8
+        # Spinbox for click timer in milliseconds
+        self.spin_click_timer = ttk.Spinbox(
+            click_timer_frame,
+            from_=1000,
+            to=3600000,  # Up to 1 hour
+            increment=1000,
+            textvariable=self.click_timer_ms,
+            width=10
         )
-        self.spin_refresh.grid(row=0, column=1, sticky="w")
+        self.spin_click_timer.grid(row=0, column=1, sticky="w")
 
-        ttk.Label(refresh_frame, text=f"(min {CONFIG.min_refresh_ms}, max {CONFIG.max_refresh_ms}, step {CONFIG.refresh_step})").grid(row=0, column=2, padx=(8, 0))
+        ttk.Label(click_timer_frame, text="(values in ms)").grid(row=0, column=2, padx=(8, 0))
 
-        # Confidence threshold
-        conf_frame = ttk.Frame(controls)
-        conf_frame.grid(row=2, column=0, sticky="w", pady=(8, 0))
-        ttk.Label(conf_frame, text="OCR confidence threshold:").grid(row=0, column=0, padx=(0, 6))
-        ttk.Spinbox(
-            conf_frame,
-            from_=CONFIG.min_conf,
-            to=CONFIG.max_conf,
-            increment=CONFIG.conf_step,
-            textvariable=self.conf_threshold,
-            width=8
-        ).grid(row=0, column=1, sticky="w")
+        # Double Click Delay (below click timer)
+        double_click_frame = ttk.Frame(controls)
+        double_click_frame.grid(row=2, column=0, sticky="w", pady=(8, 0))
+
+        ttk.Label(double_click_frame, text="Double Click Delay:").grid(row=0, column=0, sticky="w", padx=(0, 6))
+
+        self.spin_double_click_delay = ttk.Spinbox(
+            double_click_frame,
+            from_=100,
+            to=2000,
+            increment=100,
+            textvariable=self.double_click_delay_ms,
+            width=10
+        )
+        self.spin_double_click_delay.grid(row=0, column=1, sticky="w")
+
+        ttk.Label(double_click_frame, text="(ms between clicks)").grid(row=0, column=2, padx=(8, 0))
+
+        # Current State Display (below double click delay)
+        state_frame = ttk.Frame(controls)
+        state_frame.grid(row=3, column=0, sticky="w", pady=(8, 0))
+
+        ttk.Label(state_frame, text="Current State:").grid(row=0, column=0, sticky="w", padx=(0, 6))
+
+        self.state_display = ttk.Entry(state_frame, textvariable=self.current_state, state="readonly", width=20)
+        self.state_display.grid(row=0, column=1, sticky="w")
 
         # =========================
         # DEBUG UI SECTION START
@@ -722,23 +758,120 @@ class App:
                 detectors_dict=CONFIG.detectors,
             )
 
-            # 4) Build signals from detector results (legacy, kept for compatibility)
+            # 4) Build signals from detector results (for backward compatibility or custom logic)
             signals = {
                 "has_auto_red": results["AUTO_RED_ICON"].found,
                 "has_auto_green": results["AUTO_GREEN_ICON"].found,
+                "has_end_run": results["END_RUN_BUTTON"].found,
+                "has_to_lobby": results["TO_LOBBY_BUTTON"].found,
+                "has_switch_fish": results["SWITCH_FISH_ICON"].found,
+                "has_leave": results["LEAVE_BUTTON"].found,
+                "has_disconnected": results["DISCONNECTED_ICON"].found,
+                "has_home_screen": results["HOME_SCREEN_ICON"].found,
             }
 
             # 5) Resolve state from detector results using state machine
             current_state = resolve_state(results)
-            self._log(f"[state] {current_state}")
+            # self._log(f"[state] {current_state}")  # Disabled - shown in UI
+
+            # Update UI state display
+            self.current_state.set(current_state)
+
+            # Track state duration
+            if current_state != self.last_state:
+                self.last_state = current_state
+                self.state_start_time = time.time()
+
+            state_duration = time.time() - self.state_start_time
 
             # 6) Take actions based on state
-            # This is where you would add your automation logic
-            # Example:
-            #if current_state == states.STATE_IN_RUN:
-            #    click_point(st.win_rect, CLICK_POINTS["AUTO_BUTTON"], clicks=2)
-            # elif current_state == states.STATE_DEAD:
-            #     click_point(st.win_rect, CLICK_POINTS["DEATH_TO_LOBBY"], clicks=1)
+            # State-based action handler
+            if current_state == states.STATE_DEAD:
+                # Dead state - click center of to_lobby button
+                if results["TO_LOBBY_BUTTON"].found and results["TO_LOBBY_BUTTON"].bbox:
+                    center = bbox_center(results["TO_LOBBY_BUTTON"].bbox)
+                    self._log(f"[action] DEAD detected - clicking to_lobby at {center}")
+                    click_point(st.win_rect, center, clicks=1)
+
+            elif current_state == states.STATE_AUTO_STOPPED:
+                # Auto has stopped - click AUTO_BUTTON once to restart it
+                self._log(f"[action] AUTO_STOPPED detected - clicking AUTO_BUTTON to restart")
+                click_point(st.win_rect, CLICK_POINTS["AUTO_BUTTON"], clicks=1)
+
+            elif current_state == states.STATE_IN_RUN:
+                current_time = time.time()
+                # Check if timer has elapsed (convert ms to seconds)
+                timer_interval_s = self.click_timer_ms.get() / 1000.0
+
+                if self.last_click_time == 0:
+                    # First time in IN_RUN state, click immediately
+                    click_point(st.win_rect, CLICK_POINTS["AUTO_BUTTON"], clicks=2, delay_ms=self.double_click_delay_ms.get())
+                    self.last_click_time = current_time
+                elif (current_time - self.last_click_time) >= timer_interval_s:
+                    # Timer has elapsed, run click routine
+                    time_since_last = current_time - self.last_click_time
+                    click_point(st.win_rect, CLICK_POINTS["AUTO_BUTTON"], clicks=2, delay_ms=self.double_click_delay_ms.get())
+                    # Reset timer
+                    self.last_click_time = current_time
+                else:
+                    # Log the timer countdown occasionally (every 10 seconds worth of scans)
+                    time_remaining = timer_interval_s - (current_time - self.last_click_time)
+                    if int(current_time - self.last_click_time) % 10 < (self.refresh_ms.get() / 1000.0):
+                        self._log(f"[click] IN_RUN - Next click in {time_remaining:.1f}s")
+
+            elif current_state == states.STATE_DISCONNECTED:
+                # Disconnected - click the center of the disconnected icon to reconnect
+                if results["DISCONNECTED_ICON"].found and results["DISCONNECTED_ICON"].bbox:
+                    center = bbox_center(results["DISCONNECTED_ICON"].bbox)
+                    self._log(f"[action] DISCONNECTED detected - clicking center of disconnected icon at {center}")
+                    click_point(st.win_rect, center, clicks=1)
+
+            elif current_state == states.STATE_HOME_SCREEN:
+                # Home screen - click the center of the fish menu icon
+                if results["HOME_SCREEN_ICON"].found and results["HOME_SCREEN_ICON"].bbox:
+                    center = bbox_center(results["HOME_SCREEN_GAME_ICON"].bbox)
+                    self._log(f"[action] HOME_SCREEN detected - clicking fish menu at {center}")
+                    click_point(st.win_rect, center, clicks=1)
+
+            elif current_state == states.STATE_FISH_MENU:
+                # Fish menu screen - click the center of the quick join button
+                if results["QUICK_JOIN_ICON"].found and results["QUICK_JOIN_ICON"].bbox:
+                    center = bbox_center(results["QUICK_JOIN_ICON"].bbox)
+                    self._log(f"[action] FISH_MENU detected - clicking quick join at {center}")
+                    click_point(st.win_rect, center, clicks=1)
+
+            elif current_state == states.STATE_STUCK_IN_LOBBY:
+                # Stuck in lobby - only take action after 15 seconds
+                if state_duration >= 15.0:
+                    if results["MENU_ICON"].found and results["MENU_ICON"].bbox:
+                        center = bbox_center(results["MENU_ICON"].bbox)
+                        self._log(f"[action] STUCK_IN_LOBBY for {state_duration:.1f}s - clicking menu icon at {center}")
+                        click_point(st.win_rect, center, clicks=1)
+                else:
+                    # Log countdown occasionally (every 5 seconds)
+                    if int(state_duration) % 5 < (self.refresh_ms.get() / 1000.0):
+                        remaining = 15.0 - state_duration
+                        self._log(f"[action] STUCK_IN_LOBBY - waiting {remaining:.1f}s before action")
+
+            elif current_state == states.STATE_MENU:
+                # Menu screen - click the center of the leave button
+                if results["LEAVE_BUTTON"].found and results["LEAVE_BUTTON"].bbox:
+                    center = bbox_center(results["LEAVE_BUTTON"].bbox)
+                    self._log(f"[action] MENU detected - clicking leave button at {center}")
+                    click_point(st.win_rect, center, clicks=1)
+
+            elif current_state == states.STATE_LEAVE_MENU:
+                # Leave menu confirmation - click the center of the leave confirm button
+                if results["LEAVE_BUTTON_CONFIRM"].found and results["LEAVE_BUTTON_CONFIRM"].bbox:
+                    center = bbox_center(results["LEAVE_BUTTON_CONFIRM"].bbox)
+                    self._log(f"[action] LEAVE_MENU detected - clicking leave confirm at {center}")
+                    click_point(st.win_rect, center, clicks=1)
+
+            else:
+                # Reset timer when not in IN_RUN state
+                if self.last_click_time != 0:
+                    self._log(f"[click] State changed from IN_RUN to {current_state}, resetting timer")
+                self.last_click_time = 0
 
             dt_ms = int((time.time() - t0) * 1000)
 
@@ -760,11 +893,12 @@ class App:
             # Print detector results
             # Option A: keep your loop (works fine)
             # Option B: use helper so main.py stays clean
-            debugging.log_detectors(results, self._log, filter_text=self.debug_filter.get())
+            
+            # debugging.log_detectors(results, self._log, filter_text=self.debug_filter.get())
 
             # Save raw screenshot if enabled
             try:
-                if debugging.DEBUG_SAVE_EVERY_SCAN or (not self.is_running.get()):
+                if debugging.DEBUG_SAVE_SCREENSHOTS and (debugging.DEBUG_SAVE_EVERY_SCAN or (not self.is_running.get())):
                     saved_path = debugging.save_debug_screenshot(pil_img, subfolder="debug_shots", prefix="desktop")
                     self._log(f"[debug] saved screenshot: {saved_path}")
             except Exception as e:

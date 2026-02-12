@@ -35,6 +35,15 @@ import win32api
 # If you do not want it, you can remove it and skip the toggle function.
 import pyautogui
 
+# Load config for debug settings
+from config_loader import load_config
+
+try:
+    _CONFIG = load_config()
+    DEBUG_WINDOW_PRINT = _CONFIG.debug_window_print
+except Exception:
+    DEBUG_WINDOW_PRINT = False
+
 
 # ----------------------------
 # Data models (simple and clear)
@@ -303,15 +312,16 @@ def try_alt_enter_toggle(hwnd: int, cfg: EnforceConfig, log_fn) -> None:
         return
 
     ok = activate_window(hwnd)
-    log_fn(f"[window] activate before Alt+Enter ok={ok}")
+    # log_fn(f"[window] activate before Alt+Enter ok={ok}")
 
     time.sleep(0.10)
 
     try:
         pyautogui.hotkey("alt", "enter")
-        log_fn("[window] sent Alt+Enter toggle")
+        # log_fn("[window] sent Alt+Enter toggle")
     except Exception as e:
-        log_fn(f"[window] Alt+Enter failed: {type(e).__name__}: {e}")
+        # log_fn(f"[window] Alt+Enter failed: {type(e).__name__}: {e}")
+        pass
 
     time.sleep(cfg.post_alt_enter_sleep_s)
 
@@ -361,7 +371,7 @@ def resize_window_to_target_client(hwnd: int, target_client_w: int, target_clien
         win32con.SWP_NOZORDER | win32con.SWP_NOOWNERZORDER | win32con.SWP_SHOWWINDOW
     )
 
-    log_fn(f"[window] resized outer to {outer_w}x{outer_h} to aim for client {target_client_w}x{target_client_h}")
+    # log_fn(f"[window] resized outer to {outer_w}x{outer_h} to aim for client {target_client_w}x{target_client_h}")
 
 
 # ----------------------------
@@ -413,7 +423,8 @@ def ensure_window(cfg: EnforceConfig, log_fn) -> Optional[WindowStatus]:
     """
     hwnd = find_window_by_title_contains(cfg.title_contains)
     if not hwnd:
-        log_fn(f"[window] NOT FOUND title contains: '{cfg.title_contains}'")
+        if DEBUG_WINDOW_PRINT:
+            log_fn(f"[window] NOT FOUND title contains: '{cfg.title_contains}'")
         return None
 
     # First snapshot
@@ -422,7 +433,8 @@ def ensure_window(cfg: EnforceConfig, log_fn) -> Optional[WindowStatus]:
     # 1) Activate if needed
     if not st.is_foreground:
         ok = activate_window(hwnd)
-        log_fn(f"[window] activated ok={ok}")
+        if DEBUG_WINDOW_PRINT:
+            log_fn(f"[window] activated ok={ok}")
         time.sleep(cfg.post_activate_sleep_s)
 
     # Refresh status after activation
@@ -430,7 +442,7 @@ def ensure_window(cfg: EnforceConfig, log_fn) -> Optional[WindowStatus]:
 
     # 2) If it looks fullscreen or borderless fullscreen, try toggling to windowed mode
     if st.looks_fullscreen_like:
-        log_fn("[window] looks fullscreen-like, attempting to toggle to windowed mode")
+        # log_fn("[window] looks fullscreen-like, attempting to toggle to windowed mode")
         try_alt_enter_toggle(hwnd, cfg, log_fn)
 
     # Refresh status after possible mode toggle
@@ -453,7 +465,7 @@ def ensure_window(cfg: EnforceConfig, log_fn) -> Optional[WindowStatus]:
             0, 0,
             win32con.SWP_NOSIZE | win32con.SWP_NOZORDER | win32con.SWP_NOOWNERZORDER | win32con.SWP_SHOWWINDOW
         )
-        log_fn(f"[window] moved to monitor {cfg.monitor_index} at ({x},{y})")
+        # log_fn(f"[window] moved to monitor {cfg.monitor_index} at ({x},{y})")
         time.sleep(cfg.post_move_sleep_s)
 
     # Refresh status after move
@@ -479,13 +491,14 @@ def ensure_window(cfg: EnforceConfig, log_fn) -> Optional[WindowStatus]:
     st = get_window_status(hwnd, cfg)
 
     # Log final summary in a readable way
-    log_fn(
-        f"[window] final title='{st.title}' "
-        f"client={st.client_size[0]}x{st.client_size[1]} "
-        f"fg={st.is_foreground} "
-        f"on_mon={st.is_on_target_monitor} "
-        f"spanning={st.looks_spanning_monitors} "
-        f"fullscreen_like={st.looks_fullscreen_like}"
-    )
+    if DEBUG_WINDOW_PRINT:
+        log_fn(
+            f"[window] final title='{st.title}' "
+            f"client={st.client_size[0]}x{st.client_size[1]} "
+            f"fg={st.is_foreground} "
+            f"on_mon={st.is_on_target_monitor} "
+            f"spanning={st.looks_spanning_monitors} "
+            f"fullscreen_like={st.looks_fullscreen_like}"
+        )
 
     return st

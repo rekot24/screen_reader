@@ -34,12 +34,12 @@ STATE_RULES: List[Dict] = [
     {
         "state": "NET_REVEAL",
         "require_all": [],
-        "require_none": ["TO_LOBBY_BUTTON", "END_RUN_ICON", "AUTO_BUTTON_ICON"],
+        "require_none": ["TO_LOBBY_BUTTON", "END_RUN_BUTTON", "AUTO_GREEN_ICON"],
         "priority": 50,
     },
     {
         "state": "STUCK_IN_LOBBY",
-        "require_all": ["SWITCH_FISH_ICON", "END_RUN_ICON"],
+        "require_all": ["SWITCH_FISH_ICON", "END_RUN_BUTTON"],
         "require_none": ["TO_LOBBY_BUTTON"],
         "priority": 40,
     },
@@ -52,7 +52,7 @@ STATE_RULES: List[Dict] = [
     {   
         "state": "GAME_CLOSED",
         "require_all": [],
-        "require_none": ["TO_LOBBY_BUTTON", "END_RUN_ICON", "AUTO_BUTTON_ICON", "SWITCH_FISH_ICON", "LEAVE_BUTTON", "LEAVE_BUTTON_CONFIRM"],
+        "require_none": ["TO_LOBBY_BUTTON", "END_RUN_BUTTON", "AUTO_GREEN_ICON", "SWITCH_FISH_ICON", "LEAVE_BUTTON", "LEAVE_BUTTON_CONFIRM"],
         "priority": 20,
     },
     {
@@ -64,21 +64,34 @@ STATE_RULES: List[Dict] = [
     {
         "state": "HOME_SCREEN",
         "require_all": ["HOME_SCREEN_ICON"],
-        "require_none": ["TO_LOBBY_BUTTON", "END_RUN_ICON", "AUTO_BUTTON_ICON", "SWITCH_FISH_ICON", "LEAVE_BUTTON", "LEAVE_BUTTON_CONFIRM"],
+        "require_none": ["TO_LOBBY_BUTTON", "END_RUN_BUTTON", "AUTO_GREEN_ICON", "SWITCH_FISH_ICON", "LEAVE_BUTTON", "LEAVE_BUTTON_CONFIRM"],
         "priority": 70,
     },
     {
         "state": "FISH_MENU",
-        "require_all": ["SWITCH_FISH_ICON"],
-        "require_none": ["END_RUN_ICON", "TO_LOBBY_BUTTON"],
+        # Menu for "Be Fish"
+        "require_all": ["FISH_MENU_SCREEN"],
+        "require_none": ["END_RUN_BUTTON", "TO_LOBBY_BUTTON"],
         "priority": 65,
     },
     {
         "state": "SERVER_MENU",
-        "require_all": ["SERVER_MENU_ICON"],
-        "require_none": ["END_RUN_ICON", "TO_LOBBY_BUTTON", "SWITCH_FISH_ICON"],
+        "require_all": ["SERVER_MENU"],
+        "require_none": ["END_RUN_BUTTON", "TO_LOBBY_BUTTON", "SWITCH_FISH_ICON"],
         "priority": 55,
     },
+    {
+        "state": "AUTO_STOPPED",
+        "require_all": ["AUTO_RED_ICON", "END_RUN_BUTTON"],
+        "require_none": ["TO_LOBBY_BUTTON", "LEAVE_BUTTON", "LEAVE_BUTTON_CONFIRM"],
+        "priority": 75,
+    },
+    {
+        "state": "LEAVE_MENU",
+        "require_all": ["LEAVE_BUTTON_CONFIRM"],
+        "require_none": [],
+        "priority": 35,
+    }
 ]
 
 

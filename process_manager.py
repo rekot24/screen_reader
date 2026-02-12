@@ -201,7 +201,7 @@ def ensure_process_running(
     hwnd = find_window_by_title_contains(title_contains)
     
     if hwnd:
-        log_fn(f"[process] Window found with title containing '{title_contains}'")
+        # log_fn(f"[process] Window found with title containing '{title_contains}'")
         return True
     
     # Window not found

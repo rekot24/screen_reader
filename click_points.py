@@ -14,7 +14,7 @@ from typing import Dict, Tuple
 Point = Tuple[int, int]
 
 # Name each click target like a button or UI element.
-# Use placeholder values now, replace them as you measure.
+
 CLICK_POINTS: Dict[str, Point] = {
     # Example placeholders
     "AUTO_BUTTON": (1202, 328),
