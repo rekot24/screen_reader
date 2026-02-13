@@ -47,7 +47,7 @@ from process_manager import ensure_process_running
 from window_manager import EnforceConfig, ensure_window
 
 from click_points import CLICK_POINTS
-from clicker import click_point
+from clicker import click_point, scroll_view
 from state_machine import resolve_state
 
 import states
@@ -474,6 +474,10 @@ class App:
         self.last_state = "UNKNOWN"
         self.state_start_time = time.time()
 
+        # Server selection (mutually exclusive)
+        self.public_server = tk.BooleanVar(value=True)
+        self.private_server = tk.BooleanVar(value=False)
+
         # Debug filter Safe to remove later
         self.debug_filter = tk.StringVar(value="")
 
@@ -567,6 +571,28 @@ class App:
         self.state_display = ttk.Entry(state_frame, textvariable=self.current_state, state="readonly", width=20)
         self.state_display.grid(row=0, column=1, sticky="w")
 
+        # Server Selection (below current state)
+        server_frame = ttk.Frame(controls)
+        server_frame.grid(row=4, column=0, sticky="w", pady=(8, 0))
+
+        ttk.Label(server_frame, text="Server Type:").grid(row=0, column=0, sticky="w", padx=(0, 6))
+
+        self.chk_public = ttk.Checkbutton(
+            server_frame,
+            text="Public Server",
+            variable=self.public_server,
+            command=self._on_public_toggle
+        )
+        self.chk_public.grid(row=0, column=1, sticky="w", padx=(0, 12))
+
+        self.chk_private = ttk.Checkbutton(
+            server_frame,
+            text="Private Server",
+            variable=self.private_server,
+            command=self._on_private_toggle
+        )
+        self.chk_private.grid(row=0, column=2, sticky="w")
+
         # =========================
         # DEBUG UI SECTION START
         # This whole section is safe to comment out later if you want no debug UI.
@@ -621,10 +647,22 @@ class App:
 
         self.root.after(50, self._pump_ui_queue)
 
+    def _on_public_toggle(self):
+        """When public server is toggled on, turn off private server."""
+        if self.public_server.get():
+            self.private_server.set(False)
+
+    def _on_private_toggle(self):
+        """When private server is toggled on, turn off public server."""
+        if self.private_server.get():
+            self.public_server.set(False)
 
     def _log(self, msg: str):
-
         """Thread-safe logging: worker threads call this."""
+        # Check if actions logging is enabled
+        if not CONFIG.enable_actions_logging:
+            return
+
         ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
         self.ui_queue.put(f"[{ts}] {msg}")
 
@@ -838,11 +876,41 @@ class App:
                     click_point(st.win_rect, center, clicks=1)
 
             elif current_state == states.STATE_FISH_MENU:
-                # Fish menu screen - click the center of the quick join button
-                if results["QUICK_JOIN_ICON"].found and results["QUICK_JOIN_ICON"].bbox:
-                    center = bbox_center(results["QUICK_JOIN_ICON"].bbox)
-                    self._log(f"[action] FISH_MENU detected - clicking quick join at {center}")
-                    click_point(st.win_rect, center, clicks=1)
+                # Fish menu screen - behavior depends on server type
+                if self.public_server.get():
+                    # Public server: click quick join button
+                    if results["QUICK_JOIN_ICON"].found and results["QUICK_JOIN_ICON"].bbox:
+                        center = bbox_center(results["QUICK_JOIN_ICON"].bbox)
+                        self._log(f"[action] FISH_MENU detected (public) - clicking quick join at {center}")
+                        click_point(st.win_rect, center, clicks=1)
+                elif self.private_server.get():
+                    # Private server: scroll down to find servers button
+                    self._log(f"[action] FISH_MENU detected (private) - scrolling down")
+                    # Scroll in the center of the window
+                    center_x = (st.win_rect[2] - st.win_rect[0]) // 2
+                    center_y = (st.win_rect[3] - st.win_rect[1]) // 2
+                    scroll_view(st.win_rect, (center_x, center_y), direction="down", clicks=3)
+
+            elif current_state == states.STATE_FISH_MENU_SCROLLED_DOWN:
+                # Fish menu scrolled down - behavior depends on server type
+                if self.public_server.get():
+                    # Public server: scroll back up
+                    self._log(f"[action] FISH_MENU_SCROLLED_DOWN detected (public) - scrolling up")
+                    center_x = (st.win_rect[2] - st.win_rect[0]) // 2
+                    center_y = (st.win_rect[3] - st.win_rect[1]) // 2
+                    scroll_view(st.win_rect, (center_x, center_y), direction="up", clicks=3)
+                elif self.private_server.get():
+                    # Private server: look for servers_button
+                    if results["SERVERS_BUTTON"].found and results["SERVERS_BUTTON"].bbox:
+                        center = bbox_center(results["SERVERS_BUTTON"].bbox)
+                        self._log(f"[action] FISH_MENU_SCROLLED_DOWN detected (private) - clicking servers_button at {center}")
+                        click_point(st.win_rect, center, clicks=1)
+                    else:
+                        # If not found, scroll down more
+                        self._log(f"[action] FISH_MENU_SCROLLED_DOWN detected (private) - servers_button not found, scrolling down")
+                        center_x = (st.win_rect[2] - st.win_rect[0]) // 2
+                        center_y = (st.win_rect[3] - st.win_rect[1]) // 2
+                        scroll_view(st.win_rect, (center_x, center_y), direction="down", clicks=3)
 
             elif current_state == states.STATE_STUCK_IN_LOBBY:
                 # Stuck in lobby - only take action after 15 seconds
@@ -870,6 +938,16 @@ class App:
                     center = bbox_center(results["LEAVE_BUTTON_CONFIRM"].bbox)
                     self._log(f"[action] LEAVE_MENU detected - clicking leave confirm at {center}")
                     click_point(st.win_rect, center, clicks=1)
+
+            elif current_state == states.STATE_PRIVATE_SERVERS_MENU:
+                # Private servers menu - click center and 10px up from bottom
+                window_width = st.win_rect[2] - st.win_rect[0]
+                window_height = st.win_rect[3] - st.win_rect[1]
+                center_x = window_width // 2
+                click_y = window_height - 10  # 10px up from bottom
+                click_pos = (center_x, click_y)
+                self._log(f"[action] PRIVATE_SERVERS_MENU detected - clicking at {click_pos}")
+                click_point(st.win_rect, click_pos, clicks=1)
 
             else:
                 # Reset timer when not in IN_RUN state

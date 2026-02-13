@@ -50,6 +50,7 @@ debug:
   screenshot_subfolder: "debug_shots"
   enable_debug_ui: true
   window_debug_print: false  # Enable/disable window manager logging
+  enable_actions_logging: true  # Enable/disable logging by _log() for actions
 
 # Asset Paths (relative to project root)
 assets:
@@ -89,6 +90,10 @@ assets:
       - "assets/fish_menu_scrolled_down.png"
     servers_button:
       - "assets/servers_button.png"
+    private_servers:
+      - "assets/private_servers.png"
+    rolla_server:
+      - "assets/rolla_server.png"
 
 # Detector Configuration
 detectors:
@@ -183,3 +188,13 @@ detectors:
     kind: "image"
     confidence: 0.82
     template_key: "servers_button"
+  
+  PRIVATE_SERVERS:
+    kind: "image"
+    confidence: 0.82
+    template_key: "private_servers"
+  
+  ROLLA_SERVER:
+    kind: "image"
+    confidence: 0.82
+    template_key: "rolla_server"

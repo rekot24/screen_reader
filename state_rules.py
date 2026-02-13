@@ -91,20 +91,17 @@ STATE_RULES: List[Dict] = [
         "require_all": ["LEAVE_BUTTON_CONFIRM"],
         "require_none": [],
         "priority": 35,
+    },
+    {
+        "state": "FISH_MENU_SCROLLED_DOWN",
+        "require_all": ["FISH_MENU_SCROLLED_DOWN"],
+        "require_none": ["END_RUN_BUTTON", "TO_LOBBY_BUTTON"],
+        "priority": 45,
+    },
+    {
+        "state": "PRIVATE_SERVERS_MENU",
+        "require_all": ["PRIVATE_SERVERS"],
+        "require_none": [],
+        "priority": 50,
     }
 ]
-
-
-# Example pattern for a state rule:
-""" if state == "IN_RUN":
-    # Only click routine if we are sure we are in run
-    click_point(st.win_rect, CLICK_POINTS["AUTO_BUTTON"], clicks=1)
-
-elif state == "DEAD":
-    # Only do death recovery clicks if dead is detected
-    click_point(st.win_rect, CLICK_POINTS["DEATH_CONTINUE"], clicks=1)
-    click_point(st.win_rect, CLICK_POINTS["DEATH_RETRY"], clicks=1)
-
-else:
-    # Unknown means do nothing except log
-    self._log("[action] state unknown, not clicking") """

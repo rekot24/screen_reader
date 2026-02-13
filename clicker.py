@@ -17,6 +17,7 @@ MOUSEEVENTF_MOVE = 0x0001
 MOUSEEVENTF_ABSOLUTE = 0x8000
 MOUSEEVENTF_LEFTDOWN = 0x0002
 MOUSEEVENTF_LEFTUP = 0x0004
+MOUSEEVENTF_WHEEL = 0x0800
 
 # Structures for SendInput
 class MOUSEINPUT(Structure):
@@ -125,3 +126,36 @@ def click_point(
         click_mouse()
         if i < clicks - 1:  # Don't delay after last click
             time.sleep(delay_s)
+
+def scroll_view(win_rect, pt: Point, direction: str = "down", clicks: int = 3):
+    """
+    Scroll the view up or down using Win32 API mouse wheel.
+
+    Args:
+        win_rect: (left, top, right, bottom) of window in screen coords
+        pt: (x, y) point relative to the window where to perform scroll
+        direction: "up" or "down"
+        clicks: Number of scroll notches (default 3)
+    """
+    sx, sy = window_to_screen(win_rect, pt)
+
+    # Move to target position first
+    move_mouse_absolute(sx, sy)
+    time.sleep(0.05)
+
+    # Each scroll notch is 120 units (WHEEL_DELTA)
+    # Positive values scroll up, negative values scroll down
+    scroll_amount = 120 * clicks
+    if direction.lower() == "down":
+        scroll_amount = -scroll_amount
+
+    # Create input structure for mouse wheel
+    inp = INPUT()
+    inp.type = 0  # INPUT_MOUSE
+    inp.union.mi = MOUSEINPUT()
+    inp.union.mi.mouseData = scroll_amount
+    inp.union.mi.dwFlags = MOUSEEVENTF_WHEEL
+
+    # Send the scroll input
+    windll.user32.SendInput(1, pointer(inp), sizeof(INPUT))
+    time.sleep(0.1)
