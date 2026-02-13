@@ -85,6 +85,10 @@ assets:
       - "assets/menu_icon.png"
     home_screen_game_icon:
       - "assets/home_screen_game_icon.png"
+    fish_menu_scrolled_down:
+      - "assets/fish_menu_scrolled_down.png"
+    servers_button:
+      - "assets/servers_button.png"
 
 # Detector Configuration
 detectors:
@@ -169,3 +173,13 @@ detectors:
     kind: "image"
     confidence: 0.82
     template_key: "home_screen_game_icon"
+  
+  FISH_MENU_SCROLLED_DOWN:
+    kind: "image"
+    confidence: 0.82
+    template_key: "fish_menu_scrolled_down"
+  
+  SERVERS_BUTTON:
+    kind: "image"
+    confidence: 0.82
+    template_key: "servers_button"

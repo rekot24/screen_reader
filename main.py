@@ -18,6 +18,7 @@ Notes:
 """
 
 import time
+from datetime import datetime
 import threading
 import cv2
 import queue
@@ -620,9 +621,12 @@ class App:
 
         self.root.after(50, self._pump_ui_queue)
 
+
     def _log(self, msg: str):
+
         """Thread-safe logging: worker threads call this."""
-        self.ui_queue.put(msg)
+        ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
+        self.ui_queue.put(f"[{ts}] {msg}")
 
     # =========================
     # BUTTON ACTIONS
@@ -813,11 +817,11 @@ class App:
                     click_point(st.win_rect, CLICK_POINTS["AUTO_BUTTON"], clicks=2, delay_ms=self.double_click_delay_ms.get())
                     # Reset timer
                     self.last_click_time = current_time
-                else:
+                """ else:
                     # Log the timer countdown occasionally (every 10 seconds worth of scans)
                     time_remaining = timer_interval_s - (current_time - self.last_click_time)
                     if int(current_time - self.last_click_time) % 10 < (self.refresh_ms.get() / 1000.0):
-                        self._log(f"[click] IN_RUN - Next click in {time_remaining:.1f}s")
+                        self._log(f"[click] IN_RUN - Next click in {time_remaining:.1f}s") """
 
             elif current_state == states.STATE_DISCONNECTED:
                 # Disconnected - click the center of the disconnected icon to reconnect
