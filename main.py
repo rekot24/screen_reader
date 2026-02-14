@@ -809,7 +809,7 @@ class App:
                 "has_switch_fish": results["SWITCH_FISH_ICON"].found,
                 "has_leave": results["LEAVE_BUTTON"].found,
                 "has_disconnected": results["DISCONNECTED_ICON"].found,
-                "has_home_screen": results["HOME_SCREEN_ICON"].found,
+                "has_home_screen": results["ROBLOX_HOME_SCREEN"].found,
             }
 
             # 5) Resolve state from detector results using state machine
@@ -868,12 +868,18 @@ class App:
                     self._log(f"[action] DISCONNECTED detected - clicking center of disconnected icon at {center}")
                     click_point(st.win_rect, center, clicks=1)
 
-            elif current_state == states.STATE_HOME_SCREEN:
-                # Home screen - click the center of the fish menu icon
-                if results["HOME_SCREEN_ICON"].found and results["HOME_SCREEN_ICON"].bbox:
+            elif current_state == states.STATE_ROBLOX_HOME_SCREEN:
+                # Home screen - click the center of the game icon or scroll if not found
+                if results["HOME_SCREEN_GAME_ICON"].found and results["HOME_SCREEN_GAME_ICON"].bbox:
                     center = bbox_center(results["HOME_SCREEN_GAME_ICON"].bbox)
-                    self._log(f"[action] HOME_SCREEN detected - clicking fish menu at {center}")
+                    self._log(f"[action] BE_FISH_HOME_SCREEN_GAME_ICON detected - clicking game icon at {center}")
                     click_point(st.win_rect, center, clicks=1)
+                else:
+                    # Game icon not found, scroll down
+                    self._log(f"[action] ROBLOX_HOME_SCREEN detected - game icon not found, scrolling down")
+                    center_x = (st.win_rect[2] - st.win_rect[0]) // 2
+                    center_y = (st.win_rect[3] - st.win_rect[1]) // 2
+                    scroll_view(st.win_rect, (center_x, center_y), direction="down", clicks=3)
 
             elif current_state == states.STATE_FISH_MENU:
                 # Fish menu screen - behavior depends on server type
@@ -883,6 +889,12 @@ class App:
                         center = bbox_center(results["QUICK_JOIN_ICON"].bbox)
                         self._log(f"[action] FISH_MENU detected (public) - clicking quick join at {center}")
                         click_point(st.win_rect, center, clicks=1)
+                    else:
+                        # Quick join not found, scroll to look for it
+                        self._log(f"[action] FISH_MENU detected (public) - quick join not found, scrolling up to find it")
+                        center_x = (st.win_rect[2] - st.win_rect[0]) // 2
+                        center_y = (st.win_rect[3] - st.win_rect[1]) // 2
+                        scroll_view(st.win_rect, (center_x, center_y), direction="up", clicks=3)
                 elif self.private_server.get():
                     # Private server: scroll down to find servers button
                     self._log(f"[action] FISH_MENU detected (private) - scrolling down")
@@ -940,14 +952,22 @@ class App:
                     click_point(st.win_rect, center, clicks=1)
 
             elif current_state == states.STATE_PRIVATE_SERVERS_MENU:
-                # Private servers menu - click center and 10px up from bottom
-                window_width = st.win_rect[2] - st.win_rect[0]
-                window_height = st.win_rect[3] - st.win_rect[1]
-                center_x = window_width // 2
-                click_y = window_height - 10  # 10px up from bottom
-                click_pos = (center_x, click_y)
-                self._log(f"[action] PRIVATE_SERVERS_MENU detected - clicking at {click_pos}")
-                click_point(st.win_rect, click_pos, clicks=1)
+                # Private servers menu - look for ROLLA_SERVER and click it
+                if results["ROLLA_SERVER"].found and results["ROLLA_SERVER"].bbox:
+                    # Get the ROLLA_SERVER bbox
+                    x, y, w, h = results["ROLLA_SERVER"].bbox
+                    # Click at center horizontally, 10px from bottom of the button
+                    center_x = x + (w // 2)
+                    click_y = y + h - 10  # 10px from bottom of the button
+                    click_pos = (center_x, click_y)
+                    self._log(f"[action] PRIVATE_SERVERS_MENU detected - clicking ROLLA_SERVER at {click_pos}")
+                    click_point(st.win_rect, click_pos, clicks=1)
+                else:
+                    # ROLLA_SERVER not found, scroll down to look for it
+                    self._log(f"[action] PRIVATE_SERVERS_MENU detected - ROLLA_SERVER not found, scrolling up")
+                    center_x = (st.win_rect[2] - st.win_rect[0]) // 2
+                    center_y = (st.win_rect[3] - st.win_rect[1]) // 2
+                    scroll_view(st.win_rect, (center_x, center_y), direction="up", clicks=3)
 
             else:
                 # Reset timer when not in IN_RUN state

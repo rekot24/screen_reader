@@ -33,7 +33,7 @@ STATE_RULES: List[Dict] = [
     },
     {
         "state": "NET_REVEAL",
-        "require_all": [],
+        "require_all": ["NET_REVEAL"],
         "require_none": ["TO_LOBBY_BUTTON", "END_RUN_BUTTON", "AUTO_GREEN_ICON"],
         "priority": 50,
     },
@@ -50,9 +50,9 @@ STATE_RULES: List[Dict] = [
         "priority": 30,
     },
     {   
-        "state": "GAME_CLOSED",
+        "state": "UNKNOWN",
         "require_all": [],
-        "require_none": ["TO_LOBBY_BUTTON", "END_RUN_BUTTON", "AUTO_GREEN_ICON", "SWITCH_FISH_ICON", "LEAVE_BUTTON", "LEAVE_BUTTON_CONFIRM"],
+        "require_none": ["TO_LOBBY_BUTTON", "END_RUN_BUTTON", "AUTO_GREEN_ICON", "SWITCH_FISH_ICON", "LEAVE_BUTTON", "LEAVE_BUTTON_CONFIRM", "NET_REVEAL", "FISH_MENU_SCREEN", "FISH_MENU_SCROLLED_DOWN", "PRIVATE_SERVERS_HEADING"],
         "priority": 20,
     },
     {
@@ -62,8 +62,8 @@ STATE_RULES: List[Dict] = [
         "priority": 90,
     },
     {
-        "state": "HOME_SCREEN",
-        "require_all": ["HOME_SCREEN_ICON"],
+        "state": "ROBLOX_HOME_SCREEN",
+        "require_all": ["ROBLOX_HOME_SCREEN"],
         "require_none": ["TO_LOBBY_BUTTON", "END_RUN_BUTTON", "AUTO_GREEN_ICON", "SWITCH_FISH_ICON", "LEAVE_BUTTON", "LEAVE_BUTTON_CONFIRM"],
         "priority": 70,
     },
@@ -75,12 +75,6 @@ STATE_RULES: List[Dict] = [
         "priority": 65,
     },
     {
-        "state": "SERVER_MENU",
-        "require_all": ["SERVER_MENU"],
-        "require_none": ["END_RUN_BUTTON", "TO_LOBBY_BUTTON", "SWITCH_FISH_ICON"],
-        "priority": 55,
-    },
-    {
         "state": "AUTO_STOPPED",
         "require_all": ["AUTO_RED_ICON", "END_RUN_BUTTON"],
         "require_none": ["TO_LOBBY_BUTTON", "LEAVE_BUTTON", "LEAVE_BUTTON_CONFIRM"],
@@ -90,17 +84,17 @@ STATE_RULES: List[Dict] = [
         "state": "LEAVE_MENU",
         "require_all": ["LEAVE_BUTTON_CONFIRM"],
         "require_none": [],
-        "priority": 35,
+        "priority": 65,
     },
     {
         "state": "FISH_MENU_SCROLLED_DOWN",
         "require_all": ["FISH_MENU_SCROLLED_DOWN"],
         "require_none": ["END_RUN_BUTTON", "TO_LOBBY_BUTTON"],
-        "priority": 45,
+        "priority": 85,
     },
     {
         "state": "PRIVATE_SERVERS_MENU",
-        "require_all": ["PRIVATE_SERVERS"],
+        "require_all": ["PRIVATE_SERVERS_HEADING"],
         "require_none": [],
         "priority": 50,
     }

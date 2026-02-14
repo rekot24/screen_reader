@@ -74,26 +74,27 @@ assets:
       - "assets/leave_confirm_button.png"
     disconnected_icon:
       - "assets/disconnected_icon.png"
-    home_screen_icon:
+    roblox_home_screen:
       - "assets/home_screen.png"
     fish_menu_screen:
       - "assets/fish_menu.png"
+    fish_menu_scrolled_down:
+      - "assets/fish_menu_scrolled_down.png"  
     quick_join_icon:
       - "assets/quick_join.png"
-    private_servers_list:
-      - "assets/private_servers.png"
     menu_icon:
       - "assets/menu_icon.png"
     home_screen_game_icon:
-      - "assets/home_screen_game_icon.png"
-    fish_menu_scrolled_down:
-      - "assets/fish_menu_scrolled_down.png"
+      - "assets/home_screen_game_icon.png"    
     servers_button:
       - "assets/servers_button.png"
-    private_servers:
-      - "assets/private_servers.png"
+    private_servers_heading:
+      - "assets/private_servers_heading.png"
     rolla_server:
       - "assets/rolla_server.png"
+    net_reveal:
+      - "assets/net_reveal.png"
+      - "assets/net_reveal_alt.png"
 
 # Detector Configuration
 detectors:
@@ -149,25 +150,25 @@ detectors:
     confidence: 0.82
     template_key: "disconnected_icon"
 
-  HOME_SCREEN_ICON:
+  ROBLOX_HOME_SCREEN:
     kind: "image"
     confidence: 0.82
-    template_key: "home_screen_icon"
+    template_key: "roblox_home_screen"
   
   FISH_MENU_SCREEN:
     kind: "image"
     confidence: 0.82
     template_key: "fish_menu_screen"
-  
+
+  FISH_MENU_SCROLLED_DOWN:
+    kind: "image"
+    confidence: 0.82
+    template_key: "fish_menu_scrolled_down"  
+
   QUICK_JOIN_ICON:
     kind: "image"
     confidence: 0.82
     template_key: "quick_join_icon"
-  
-  SERVER_MENU:
-    kind: "image"
-    confidence: 0.82
-    template_key: "private_servers_list"
   
   MENU_ICON:
     kind: "image"
@@ -179,22 +180,22 @@ detectors:
     confidence: 0.82
     template_key: "home_screen_game_icon"
   
-  FISH_MENU_SCROLLED_DOWN:
-    kind: "image"
-    confidence: 0.82
-    template_key: "fish_menu_scrolled_down"
-  
   SERVERS_BUTTON:
     kind: "image"
     confidence: 0.82
     template_key: "servers_button"
   
-  PRIVATE_SERVERS:
+  PRIVATE_SERVERS_HEADING:
     kind: "image"
     confidence: 0.82
-    template_key: "private_servers"
+    template_key: "private_servers_heading"
   
   ROLLA_SERVER:
     kind: "image"
     confidence: 0.82
     template_key: "rolla_server"
+
+  NET_REVEAL:
+    kind: "image"
+    confidence: 0.82
+    template_key: "net_reveal"
