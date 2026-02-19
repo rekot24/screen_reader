@@ -43,12 +43,6 @@ STATE_RULES: List[Dict] = [
         "require_none": ["TO_LOBBY_BUTTON"],
         "priority": 40,
     },
-    {
-        "state": "MENU_CONFIRMATION",
-        "require_all": ["LEAVE_BUTTON_CONFIRM"],
-        "require_none": [],
-        "priority": 30,
-    },
     {   
         "state": "UNKNOWN",
         "require_all": [],

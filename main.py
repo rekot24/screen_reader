@@ -937,13 +937,6 @@ class App:
                         remaining = 15.0 - state_duration
                         self._log(f"[action] STUCK_IN_LOBBY - waiting {remaining:.1f}s before action")
 
-            elif current_state == states.STATE_NET_REVEAL:
-                # Net Reveal state. Click Menu to leave and skip net reveal animations
-                if results["MENU_ICON"].found and results["MENU_ICON"].bbox:
-                        center = bbox_center(results["MENU_ICON"].bbox)
-                        self._log(f"[action] NET_REVEAL detected - clicking menu icon at {center}")
-                        click_point(st.win_rect, center, clicks=1)
-
             elif current_state == states.STATE_MENU:
                 # Menu screen - click the center of the leave button
                 if results["LEAVE_BUTTON"].found and results["LEAVE_BUTTON"].bbox:
@@ -957,6 +950,13 @@ class App:
                     center = bbox_center(results["LEAVE_BUTTON_CONFIRM"].bbox)
                     self._log(f"[action] LEAVE_MENU detected - clicking leave confirm at {center}")
                     click_point(st.win_rect, center, clicks=1)
+
+            elif current_state == states.STATE_NET_REVEAL:
+                # Net Reveal state. Click Menu to leave and skip net reveal animations
+                if results["MENU_ICON"].found and results["MENU_ICON"].bbox:
+                        center = bbox_center(results["MENU_ICON"].bbox)
+                        self._log(f"[action] NET_REVEAL detected - clicking menu icon at {center}")
+                        click_point(st.win_rect, center, clicks=1)
 
             elif current_state == states.STATE_PRIVATE_SERVERS_MENU:
                 # Private servers menu - look for ROLLA_SERVER and click it
