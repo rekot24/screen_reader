@@ -10,18 +10,18 @@ window:
   title_contains: "roblox"  # Substring to match (case-insensitive)
   activate_before_capture: true
   enforce_before_scan: true
-  monitor_index: 1  # Primary monitor (1 = primary in MSS)
+  monitor_index: 2  # Primary monitor (1 = primary in MSS)
   target_client_width: 1280
   target_client_height: 720
 # NEW: Application launch settings
-  exe_path: "C:\\Users\\joshu\\AppData\\Local\\Roblox\\Versions\\version-42512dc682084cf7\\RobloxPlayerBeta.exe"  # Path to executable
+  exe_path: "C:\\Users\\joshu\\AppData\\Local\\Roblox\\Versions\\version-df7528517c6849f7\\RobloxPlayerBeta.exe"  # Path to executable
   launch_if_not_found: true  # Auto-launch if not running
-  wait_after_launch_s: 15.0  # Wait time after launching before continuing
+  wait_after_launch_s: 10.0  # Wait time after launching before continuing
 
 # Scan Configuration
 scan:
-  default_refresh_ms: 500
-  min_refresh_ms: 500
+  default_refresh_ms: 300
+  min_refresh_ms: 300
   max_refresh_ms: 3000
   refresh_step: 100
   min_sleep_between_scans_s: 0.05

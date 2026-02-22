@@ -182,7 +182,7 @@ def main():
     # Adjust title_contains to match your game window title
     cfg = EnforceConfig(
         title_contains="Roblox",  # CHANGE THIS to match your game window
-        monitor_index=1,
+        monitor_index=2,
         target_client_w=1280,
         target_client_h=720,
     )
