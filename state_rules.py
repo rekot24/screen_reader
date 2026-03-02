@@ -91,5 +91,17 @@ STATE_RULES: List[Dict] = [
         "require_all": ["PRIVATE_SERVERS_HEADING"],
         "require_none": [],
         "priority": 50,
-    }
+    },
+    {
+        "state": "BUY_REVIVE",
+        "require_all": ["BUY_REVIVE_BUTTON"],
+        "require_none": [],
+        "priority": 95,
+    },
+    {
+        "state": "OK_CONFIRM_REVIVE_BOUGHT",
+        "require_all": ["OK_CONFIRM_REVIVE_BOUGHT_BUTTON"],
+        "require_none": [],
+        "priority": 96,
+    },
 ]

@@ -459,6 +459,10 @@ class App:
         self._stop_event = threading.Event()
         self._worker_thread: Optional[threading.Thread] = None
 
+        # Elapsed timer
+        self._timer_start: Optional[float] = None
+        self.elapsed_time = tk.StringVar(value="00:00:00")
+
         # UI variables
         self.refresh_ms = tk.IntVar(value=CONFIG.default_refresh_ms)
         self.conf_threshold = tk.IntVar(value=CONFIG.default_conf_threshold)
@@ -478,6 +482,10 @@ class App:
         self.public_server = tk.BooleanVar(value=True)
         self.private_server = tk.BooleanVar(value=False)
 
+        # Revive option
+        self.revive_enabled = tk.BooleanVar(value=False)
+        self.revive_limit = tk.IntVar(value=1)
+
         # Debug filter Safe to remove later
         self.debug_filter = tk.StringVar(value="")
 
@@ -490,10 +498,11 @@ class App:
         self._build_ui()
 
         # Hotkeys
-        # F1: Single Scan
+        # F1: Single Scan (only if enabled in config)
         # F5: Start
         # F8: Stop
-        self.root.bind("<F1>", lambda _e: self.single_scan())
+        if self.cfg.show_single_scan_button:
+            self.root.bind("<F1>", lambda _e: self.single_scan())
         self.root.bind("<F5>", lambda _e: self.start())
         self.root.bind("<F8>", lambda _e: self.stop())
 
@@ -523,11 +532,19 @@ class App:
         self.btn_stop.grid(row=0, column=1, padx=(0, 8))
 
         self.btn_scan = ttk.Button(btns, text="Single Scan", command=self.single_scan)
-        self.btn_scan.grid(row=0, column=2)
+        if self.cfg.show_single_scan_button:
+            self.btn_scan.grid(row=0, column=2)
 
-        # Click Timer (below buttons)
+        # Elapsed Timer (below buttons)
+        timer_frame = ttk.Frame(controls)
+        timer_frame.grid(row=1, column=0, sticky="w", pady=(6, 0))
+
+        ttk.Label(timer_frame, text="Elapsed:").grid(row=0, column=0, sticky="w", padx=(0, 6))
+        ttk.Label(timer_frame, textvariable=self.elapsed_time, font=("Courier", 11, "bold")).grid(row=0, column=1, sticky="w")
+
+        # Click Timer (below elapsed timer)
         click_timer_frame = ttk.Frame(controls)
-        click_timer_frame.grid(row=1, column=0, sticky="w", pady=(10, 0))
+        click_timer_frame.grid(row=2, column=0, sticky="w", pady=(10, 0))
 
         ttk.Label(click_timer_frame, text="Click Timer:").grid(row=0, column=0, sticky="w", padx=(0, 6))
 
@@ -546,7 +563,7 @@ class App:
 
         # Double Click Delay (below click timer)
         double_click_frame = ttk.Frame(controls)
-        double_click_frame.grid(row=2, column=0, sticky="w", pady=(8, 0))
+        double_click_frame.grid(row=3, column=0, sticky="w", pady=(8, 0))
 
         ttk.Label(double_click_frame, text="Double Click Delay:").grid(row=0, column=0, sticky="w", padx=(0, 6))
 
@@ -564,16 +581,16 @@ class App:
 
         # Current State Display (below double click delay)
         state_frame = ttk.Frame(controls)
-        state_frame.grid(row=3, column=0, sticky="w", pady=(8, 0))
+        state_frame.grid(row=4, column=0, sticky="w", pady=(8, 0))
 
         ttk.Label(state_frame, text="Current State:").grid(row=0, column=0, sticky="w", padx=(0, 6))
 
-        self.state_display = ttk.Entry(state_frame, textvariable=self.current_state, state="readonly", width=20)
+        self.state_display = ttk.Entry(state_frame, textvariable=self.current_state, state="readonly", width=40)
         self.state_display.grid(row=0, column=1, sticky="w")
 
         # Server Selection (below current state)
         server_frame = ttk.Frame(controls)
-        server_frame.grid(row=4, column=0, sticky="w", pady=(8, 0))
+        server_frame.grid(row=5, column=0, sticky="w", pady=(8, 0))
 
         ttk.Label(server_frame, text="Server Type:").grid(row=0, column=0, sticky="w", padx=(0, 6))
 
@@ -592,6 +609,23 @@ class App:
             command=self._on_private_toggle
         )
         self.chk_private.grid(row=0, column=2, sticky="w")
+
+        self.chk_revive = ttk.Checkbutton(
+            server_frame,
+            text="Revive",
+            variable=self.revive_enabled,
+        )
+        self.chk_revive.grid(row=1, column=1, sticky="w", pady=(4, 0))
+
+        ttk.Label(server_frame, text="Limit").grid(row=1, column=2, sticky="w", padx=(8, 2), pady=(4, 0))
+        self.spn_revive_limit = ttk.Spinbox(
+            server_frame,
+            from_=0,
+            to=99,
+            textvariable=self.revive_limit,
+            width=4,
+        )
+        self.spn_revive_limit.grid(row=1, column=3, sticky="w", pady=(4, 0))
 
         # =========================
         # DEBUG UI SECTION START
@@ -647,6 +681,18 @@ class App:
 
         self.root.after(50, self._pump_ui_queue)
 
+    def _update_timer(self):
+        """Update the elapsed time display every second while running."""
+        if not self.is_running.get():
+            return
+        if self._timer_start is not None:
+            elapsed = int(time.time() - self._timer_start)
+            h = elapsed // 3600
+            m = (elapsed % 3600) // 60
+            s = elapsed % 60
+            self.elapsed_time.set(f"{h:02d}:{m:02d}:{s:02d}")
+        self.root.after(1000, self._update_timer)
+
     def _on_public_toggle(self):
         """When public server is toggled on, turn off private server."""
         if self.public_server.get():
@@ -684,6 +730,10 @@ class App:
 
         self._worker_thread = threading.Thread(target=self._scan_loop, daemon=True)
         self._worker_thread.start()
+
+        self._timer_start = time.time()
+        self.elapsed_time.set("00:00:00")
+        self._update_timer()
 
         self._log("[run] started")
 
@@ -776,8 +826,11 @@ class App:
             frame_rgb = np.array(pil_img)
             frame_bgr = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
             
-            # OCR -> hits
-            hits = ocr_image_to_hits(pil_img, conf_threshold=int(self.conf_threshold.get()))
+            # OCR -> hits (skip if OCR is disabled in config)
+            if CONFIG.ocr_enabled:
+                hits = ocr_image_to_hits(pil_img, conf_threshold=int(self.conf_threshold.get()))
+            else:
+                hits = []
 
             # Run detectors (choose which ones you care about for now)
             # run all detectors in the registry
@@ -829,11 +882,54 @@ class App:
             # 6) Take actions based on state
             # State-based action handler
             if current_state == states.STATE_DEAD:
-                # Dead state - click center of to_lobby button
-                if results["TO_LOBBY_BUTTON"].found and results["TO_LOBBY_BUTTON"].bbox:
-                    center = bbox_center(results["TO_LOBBY_BUTTON"].bbox)
-                    self._log(f"[action] DEAD detected - clicking to_lobby at {center}")
+                if self.revive_enabled.get():
+                    if self.revive_limit.get() == 0:
+                        # Revive limit exhausted - enable private server and click menu icon
+                        self._log(f"[action] DEAD+REVIVE - limit reached, enabling private server and clicking menu icon")
+                        self.private_server.set(True)
+                        self.public_server.set(False)
+                        if results["MENU_ICON"].found and results["MENU_ICON"].bbox:
+                            center = bbox_center(results["MENU_ICON"].bbox)
+                            click_point(st.win_rect, center, clicks=1)
+                    else:
+                        # Revive mode: first ensure auto is off, then click revive button
+                        if results["AUTO_RED_ICON"].found:
+                            # Auto is already off (red) - click the revive button
+                            if results["REVIVE_BUTTON"].found and results["REVIVE_BUTTON"].bbox:
+                                center = bbox_center(results["REVIVE_BUTTON"].bbox)
+                                self._log(f"[action] DEAD+REVIVE - auto off, clicking revive button at {center}")
+                                click_point(st.win_rect, center, clicks=1)
+                                time.sleep(3.0)
+                        else:
+                            # Auto is still on - turn it off first
+                            self._log(f"[action] DEAD+REVIVE - clicking AUTO_BUTTON to turn off auto")
+                            click_point(st.win_rect, CLICK_POINTS["AUTO_BUTTON"], clicks=1)
+                else:
+                    # Normal dead state - click to_lobby button
+                    if results["TO_LOBBY_BUTTON"].found and results["TO_LOBBY_BUTTON"].bbox:
+                        center = bbox_center(results["TO_LOBBY_BUTTON"].bbox)
+                        self._log(f"[action] DEAD detected - clicking to_lobby at {center}")
+                        click_point(st.win_rect, center, clicks=1)
+
+            elif current_state == states.STATE_BUY_REVIVE:
+                # Buy revive dialog - click the buy revive button
+                if results["BUY_REVIVE_BUTTON"].found and results["BUY_REVIVE_BUTTON"].bbox:
+                    center = bbox_center(results["BUY_REVIVE_BUTTON"].bbox)
+                    self._log(f"[action] BUY_REVIVE detected - clicking buy revive at {center}")
                     click_point(st.win_rect, center, clicks=1)
+                    time.sleep(3)
+
+            elif current_state == states.STATE_OK_CONFIRM_REVIVE_BOUGHT:
+                # Revive purchase confirmed - click OK to dismiss
+                if results["OK_CONFIRM_REVIVE_BOUGHT_BUTTON"].found and results["OK_CONFIRM_REVIVE_BOUGHT_BUTTON"].bbox:
+                    center = bbox_center(results["OK_CONFIRM_REVIVE_BOUGHT_BUTTON"].bbox)
+                    self._log(f"[action] OK_CONFIRM_REVIVE_BOUGHT detected - clicking confirm at {center}")
+                    click_point(st.win_rect, center, clicks=1)
+                    # Decrease revive limit (floor at 0)
+                    current_limit = self.revive_limit.get()
+                    if current_limit > 0:
+                        self.revive_limit.set(current_limit - 1)
+                        self._log(f"[action] Revive limit decreased to {current_limit - 1}")
 
             elif current_state == states.STATE_AUTO_STOPPED:
                 # Auto has stopped - click AUTO_BUTTON once to restart it
@@ -864,8 +960,8 @@ class App:
             elif current_state == states.STATE_DISCONNECTED:
                 # Disconnected - click the center of the disconnected icon to reconnect
                 if results["DISCONNECTED_ICON"].found and results["DISCONNECTED_ICON"].bbox:
-                    center = bbox_center(results["DISCONNECTED_ICON"].bbox)
-                    self._log(f"[action] DISCONNECTED detected - clicking center of disconnected icon at {center}")
+                    center = bbox_center(results["DISCONNECT_LEAVE_BUTTON"].bbox)
+                    self._log(f"[action] DISCONNECTED detected - clicking center of disconnected_leave_button icon at {center}")
                     click_point(st.win_rect, center, clicks=1)
 
             elif current_state == states.STATE_ROBLOX_HOME_SCREEN:

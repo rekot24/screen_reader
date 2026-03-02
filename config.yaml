@@ -10,7 +10,7 @@ window:
   title_contains: "roblox"  # Substring to match (case-insensitive)
   activate_before_capture: true
   enforce_before_scan: true
-  monitor_index: 2  # Primary monitor (1 = primary in MSS)
+  monitor_index: 1  # Primary monitor (1 = primary in MSS)
   target_client_width: 1280
   target_client_height: 720
 # NEW: Application launch settings
@@ -20,14 +20,15 @@ window:
 
 # Scan Configuration
 scan:
-  default_refresh_ms: 300
-  min_refresh_ms: 300
+  default_refresh_ms: 200
+  min_refresh_ms: 200
   max_refresh_ms: 3000
   refresh_step: 100
   min_sleep_between_scans_s: 0.05
 
 # OCR Configuration
 ocr:
+  enabled: false  # Set to true to re-enable OCR processing
   default_confidence_threshold: 60
   min_confidence: 0
   max_confidence: 100
@@ -51,6 +52,7 @@ debug:
   enable_debug_ui: true
   window_debug_print: false  # Enable/disable window manager logging
   enable_actions_logging: true  # Enable/disable logging by _log() for actions
+  show_single_scan_button: false  # Show/hide the Single Scan button and F1 hotkey
 
 # Asset Paths (relative to project root)
 assets:
@@ -95,19 +97,28 @@ assets:
     net_reveal:
       - "assets/net_reveal.png"
       - "assets/net_reveal_alt.png"
+    disconnect_leave_button:
+      - "assets/disconnect_leave_button.png"
+    revive_button:
+      - "assets/revive_button.png"
+      - "assets/revive_button_alt.png"
+    buy_revive_button:
+      - "assets/buy_revive.png"
+    ok_confirm_revive_bought_button:
+      - "assets/ok_confirm_revive_bought.png"
 
 # Detector Configuration
 detectors:
   # OCR detectors
-  END_RUN_TEXT:
-    kind: "ocr"
-    token: "End Run"
-    min_conf: 80
+  # END_RUN_TEXT:
+    # kind: "ocr"
+    # token: "End Run"
+    # min_conf: 80
 
-  AUTO_TEXT:
-    kind: "ocr"
-    token: "Auto"
-    min_conf: 80
+  # AUTO_TEXT:
+    # kind: "ocr"
+    # token: "Auto"
+    # min_conf: 80
 
   # Image detectors (template matching)
   AUTO_RED_ICON:
@@ -149,6 +160,11 @@ detectors:
     kind: "image"
     confidence: 0.82
     template_key: "disconnected_icon"
+  
+  DISCONNECT_LEAVE_BUTTON:
+    kind: "image"
+    confidence: 0.82
+    template_key: "disconnect_leave_button"
 
   ROBLOX_HOME_SCREEN:
     kind: "image"
@@ -199,3 +215,19 @@ detectors:
     kind: "image"
     confidence: 0.82
     template_key: "net_reveal"
+
+  REVIVE_BUTTON:
+    kind: "image"
+    confidence: 0.82
+    template_key: "revive_button"
+
+  BUY_REVIVE_BUTTON:
+    kind: "image"
+    confidence: 0.82
+    template_key: "buy_revive_button"
+
+  OK_CONFIRM_REVIVE_BOUGHT_BUTTON:
+    kind: "image"
+    confidence: 0.82
+    template_key: "ok_confirm_revive_bought_button"
+    

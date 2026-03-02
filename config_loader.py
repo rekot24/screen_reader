@@ -38,6 +38,7 @@ class Config:
     min_sleep_s: float
 
     # OCR config
+    ocr_enabled: bool
     default_conf_threshold: int
     min_conf: int
     max_conf: int
@@ -58,6 +59,7 @@ class Config:
     debug_enable_ui: bool
     debug_window_print: bool
     enable_actions_logging: bool
+    show_single_scan_button: bool
 
     # Detectors and templates (raw dicts)
     detectors: Dict[str, Any]
@@ -163,6 +165,7 @@ def load_config(config_path: Optional[Path] = None) -> Config:
             refresh_step=scan["refresh_step"],
             min_sleep_s=scan["min_sleep_between_scans_s"],
 
+            ocr_enabled=ocr.get("enabled", True),
             default_conf_threshold=ocr["default_confidence_threshold"],
             min_conf=ocr["min_confidence"],
             max_conf=ocr["max_confidence"],
@@ -180,6 +183,7 @@ def load_config(config_path: Optional[Path] = None) -> Config:
             debug_enable_ui=debug["enable_debug_ui"],
             debug_window_print=debug.get("window_debug_print", False),
             enable_actions_logging=debug.get("enable_actions_logging", True),
+            show_single_scan_button=debug.get("show_single_scan_button", True),
 
             detectors=detectors,
             template_paths_map=template_paths_map,
