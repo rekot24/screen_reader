@@ -31,8 +31,8 @@ import win32con
 import win32process
 
 import tkinter as tk
-from tkinter import ttk
-from tkinter.scrolledtext import ScrolledText
+from tkinter import ttk, filedialog
+
 
 import mss
 import numpy as np
@@ -446,7 +446,7 @@ def bbox_center(bbox: Tuple[int, int, int, int]) -> Tuple[int, int]:
 class App:
     def __init__(self, root: tk.Tk):
         self.root = root
-        self.root.title("Screen Reader")
+        self.root.title("Be Fish Automator")
 
         # Window enforcement config
         self.window_cfg = EnforceConfig(
@@ -489,6 +489,10 @@ class App:
         # Debug filter Safe to remove later
         self.debug_filter = tk.StringVar(value="")
 
+        # Log-to-file controls
+        self.log_to_file = tk.BooleanVar(value=CONFIG.log_to_file)
+        self.log_file_path = tk.StringVar(value=CONFIG.log_file_path)
+
         # Thread-safe queue to send text output to the GUI
         self.ui_queue: "queue.Queue[str]" = queue.Queue()
 
@@ -501,7 +505,7 @@ class App:
         # F1: Single Scan (only if enabled in config)
         # F5: Start
         # F8: Stop
-        if self.cfg.show_single_scan_button:
+        if CONFIG.show_single_scan_button:
             self.root.bind("<F1>", lambda _e: self.single_scan())
         self.root.bind("<F5>", lambda _e: self.start())
         self.root.bind("<F8>", lambda _e: self.stop())
@@ -532,7 +536,7 @@ class App:
         self.btn_stop.grid(row=0, column=1, padx=(0, 8))
 
         self.btn_scan = ttk.Button(btns, text="Single Scan", command=self.single_scan)
-        if self.cfg.show_single_scan_button:
+        if CONFIG.show_single_scan_button:
             self.btn_scan.grid(row=0, column=2)
 
         # Elapsed Timer (below buttons)
@@ -629,28 +633,29 @@ class App:
 
         # =========================
         # DEBUG UI SECTION START
-        # This whole section is safe to comment out later if you want no debug UI.
         # =========================
-        debug = ttk.LabelFrame(outer, text="Debug Output (safe to remove later)", padding=10)
-        debug.grid(row=1, column=0, sticky="nsew", pady=(12, 0))
-        outer.rowconfigure(1, weight=1)
+        if CONFIG.debug_enable_ui:
+            debug = ttk.LabelFrame(outer, text="Debug", padding=10)
+            debug.grid(row=1, column=0, sticky="ew", pady=(12, 0))
 
-        self.txt = ScrolledText(debug, height=18, wrap="word")
-        self.txt.grid(row=0, column=0, sticky="nsew")
-        debug.columnconfigure(0, weight=1)
-        debug.rowconfigure(0, weight=1)
+            log_row = ttk.Frame(debug)
+            log_row.grid(row=0, column=0, sticky="w")
 
-        tools = ttk.Frame(debug)
-        tools.grid(row=1, column=0, sticky="ew", pady=(8, 0))
-        tools.columnconfigure(4, weight=1)
+            ttk.Checkbutton(
+                log_row, text="Log to file",
+                variable=self.log_to_file,
+                command=self._on_log_to_file_toggle,
+            ).grid(row=0, column=0, sticky="w")
 
-        ttk.Label(tools, text="Filter OCR contains:").grid(row=0, column=2, sticky="w", padx=(0, 6))
+            # File path row — shown only when log_to_file is checked
+            self._log_path_frame = ttk.Frame(debug)
+            self._log_path_frame.grid(row=1, column=0, sticky="ew", pady=(6, 0))
+            ttk.Label(self._log_path_frame, text="Log file:").grid(row=0, column=0, padx=(0, 6))
+            ttk.Entry(self._log_path_frame, textvariable=self.log_file_path, width=40).grid(row=0, column=1)
+            ttk.Button(self._log_path_frame, text="Browse", command=self._browse_log_file).grid(row=0, column=2, padx=(6, 0))
 
-        filter_entry = ttk.Entry(tools, textvariable=self.debug_filter, width=18)
-        filter_entry.grid(row=0, column=3, sticky="w")
-
-        ttk.Button(tools, text="Clear Filter", command=lambda: self.debug_filter.set("")).grid(row=0, column=4, sticky="w", padx=(8, 0))
-
+            if not self.log_to_file.get():
+                self._log_path_frame.grid_remove()
         # =========================
         # DEBUG SECTION END
         # =========================
@@ -660,12 +665,15 @@ class App:
     # =========================
 
     def _append_output(self, text: str):
-        """Append text to the debug output box."""
-        self.txt.insert("end", text + "\n")
-        self.txt.see("end")
+        """Write log text to file if log_to_file is enabled."""
+        if self.log_to_file.get():
+            path = self.log_file_path.get().strip()
+            if path:
+                with open(path, "a", encoding="utf-8") as f:
+                    f.write(text + "\n")
 
-    def _clear_output(self):
-        self.txt.delete("1.0", "end")
+    # def _clear_output(self):
+    #     self.txt.delete("1.0", "end")
 
     def _pump_ui_queue(self):
         """
@@ -692,6 +700,21 @@ class App:
             s = elapsed % 60
             self.elapsed_time.set(f"{h:02d}:{m:02d}:{s:02d}")
         self.root.after(1000, self._update_timer)
+
+    def _on_log_to_file_toggle(self):
+        if self.log_to_file.get():
+            self._log_path_frame.grid()
+        else:
+            self._log_path_frame.grid_remove()
+
+    def _browse_log_file(self):
+        path = filedialog.asksaveasfilename(
+            defaultextension=".txt",
+            filetypes=[("Text files", "*.txt"), ("All files", "*.*")],
+            title="Select log file",
+        )
+        if path:
+            self.log_file_path.set(path)
 
     def _on_public_toggle(self):
         """When public server is toggled on, turn off private server."""

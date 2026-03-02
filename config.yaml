@@ -53,6 +53,8 @@ debug:
   window_debug_print: false  # Enable/disable window manager logging
   enable_actions_logging: true  # Enable/disable logging by _log() for actions
   show_single_scan_button: false  # Show/hide the Single Scan button and F1 hotkey
+  log_to_file: false          # Write logs to a file instead of the UI
+  log_file_path: "debug_log.txt"  # Default output file path
 
 # Asset Paths (relative to project root)
 assets:

@@ -60,6 +60,8 @@ class Config:
     debug_window_print: bool
     enable_actions_logging: bool
     show_single_scan_button: bool
+    log_to_file: bool
+    log_file_path: str
 
     # Detectors and templates (raw dicts)
     detectors: Dict[str, Any]
@@ -184,6 +186,8 @@ def load_config(config_path: Optional[Path] = None) -> Config:
             debug_window_print=debug.get("window_debug_print", False),
             enable_actions_logging=debug.get("enable_actions_logging", True),
             show_single_scan_button=debug.get("show_single_scan_button", True),
+            log_to_file=debug.get("log_to_file", False),
+            log_file_path=debug.get("log_file_path", "debug_log.txt"),
 
             detectors=detectors,
             template_paths_map=template_paths_map,
